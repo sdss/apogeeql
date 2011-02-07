@@ -5,4 +5,5 @@ python/apogeeqlActor/Commands/apogeeqlCmd.py -text
 python/apogeeqlActor/__init__.py -text
 python/apogeeqlActor/apogeeqlActor_main.py -text
 /setup.py -text
+ups/apogeeql.table -text
 ups/apogeeqlActor.table -text
