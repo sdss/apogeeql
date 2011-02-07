@@ -1,0 +1,6 @@
+#declareOptions(flavor=NULL,   name = foo)
+setupRequired(actorcore)
+setupRequired(apogeereduce)
+
+pathPrepend(PATH, ${PRODUCT_DIR}/bin)
+pathPrepend(PYTHONPATH, ${PRODUCT_DIR}/python)

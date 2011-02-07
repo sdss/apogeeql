@@ -1,0 +1,8 @@
+* text=auto !eol
+etc/apogeeql.cfg -text
+python/apogeeqlActor/Commands/__init__.py -text
+python/apogeeqlActor/Commands/apogeeqlCmd.py -text
+python/apogeeqlActor/__init__.py -text
+python/apogeeqlActor/apogeeqlActor_main.py -text
+/setup.py -text
+ups/apogeeqlActor.table -text
