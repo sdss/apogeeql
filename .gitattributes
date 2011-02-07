@@ -1,9 +1,9 @@
 * text=auto !eol
 etc/apogeeql.cfg -text
-python/apogeeqlActor/Commands/__init__.py -text
-python/apogeeqlActor/Commands/apogeeqlCmd.py -text
-python/apogeeqlActor/__init__.py -text
-python/apogeeqlActor/apogeeqlActor_main.py -text
+python/apogeeql/Commands/__init__.py -text
+python/apogeeql/Commands/apogeeqlCmd.py -text
+python/apogeeql/__init__.py -text
+python/apogeeql/apogeeqlActor_main.py -text
 /setup.py -text
 ups/apogeeql.table -text
 ups/apogeeqlActor.table -text
