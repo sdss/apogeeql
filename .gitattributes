@@ -6,4 +6,3 @@ python/apogeeql/__init__.py -text
 python/apogeeql/apogeeql_main.py -text
 /setup.py -text
 ups/apogeeql.table -text
-ups/apogeeqlActor.table -text
