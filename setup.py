@@ -5,6 +5,6 @@ import sdss3tools
 import os
 
 sdss3tools.setup(
-    description = "Toy SDSS-3 actor.",
+    description = "APOGEE Quick Look Actor",
     )
 

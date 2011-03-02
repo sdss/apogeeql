@@ -1,6 +1,8 @@
 #declareOptions(flavor=NULL,   name = foo)
-setupRequired(actorcore)
 setupRequired(apogeereduce)
+setupRequired(apogeetest)
+setupRequired(actorcore)
+setupRequired(opscore)
 
 pathPrepend(PATH, ${PRODUCT_DIR}/bin)
 pathPrepend(PYTHONPATH, ${PRODUCT_DIR}/python)

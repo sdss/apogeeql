@@ -10,7 +10,9 @@ import opscore.actor.keyvar
 
 import actorcore.Actor
 import actorcore.CmdrConnection as actorCmdrConnection
+import actorcore.utility.fits as actorFits
 
+import pyfits
 import actorkeys
 import traceback
 
@@ -30,6 +32,11 @@ class QuickLookLineServer(LineReceiver):
         self.peer = self.transport.getPeer()
         self.factory.qlActor.qlSources.append(self)
         print "Connection from ", self.peer.host, self.peer.port
+        # pass the default parameters to the IDL quicklook
+        if self.factory.qlActor.ql_pid > 0:
+           for s in self.factory.qlActor.qlSources:
+              s.sendLine('IMAGEDIR=%s' % (self.factory.qlActor.imagedir))
+
 
     def lineReceived(self, line):
         if line=='quit':
@@ -79,28 +86,120 @@ class QRFactory(ClientFactory):
 
 
 class Apogeeql(actorcore.Actor.Actor):
+
+   models = {}
+   ql_pid = 0
+   qlSources=[]
+   qr_pid = 0
+   qrSources=[]
+   prevCartridge=-1
+   prevPlate=-1
+   prevPointing='A'
+   inst = ''
+   startExp = False
+   endExp = False
+   expState=''
+   actor=''
+
    def __init__(self, name, productName=None, configFile=None, debugLevel=30):
       actorcore.Actor.Actor.__init__(self, name, productName=productName, configFile=configFile)
 
+      Apogeeql.actor=self
       self.headURL = '$HeadURL$'
 
       self.logger.setLevel(debugLevel)
       self.logger.propagate = True
-      self.ql_pid = 0
-      self.qlSources=[]
-      self.qr_pid = 0
-      self.qrSources=[]
+      self.imagedir = self.config.get('apogeeql', 'imagedir') 
 
       #
       # Explicitly load other actor models. We usually need these for FITS headers.
       #
       self.models = {}
-      for actor in ["mcp", "guider", "platedb", "tcc", "apo"]:
+      for actor in ["mcp", "guider", "platedb", "tcc", "apo", "apogeetest"]:
          self.models[actor] = opscore.actor.model.Model(actor)
+
+      #
+      # register the keywords that we want to pay attention to
+      #
+      self.models["tcc"].keyVarDict["inst"].addCallback(self.TCCInstCB, callNow=False)
+      self.models["platedb"].keyVarDict["pointingInfo"].addCallback(self.PointingInfoCB, callNow=False)
+      self.models["apogeetest"].keyVarDict["exposureState"].addCallback(self.ExposureStateCB, callNow=False)
+      self.models["apogeetest"].keyVarDict["UTRfilename"].addCallback(self.UTRfilenameCB, callNow=False)
+
       #
       # Finally start the reactor
       #
       # self.run()
+
+   @staticmethod
+   def TCCInstCB(keyVar):
+      '''callback routine for tcc.inst'''
+      print "TCCInstCB=",keyVar
+      Apogeeql.inst = keyVar[0]
+
+   @staticmethod
+   def PointingInfoCB(keyVar):
+      '''callback routine for platedb.pointingInfo'''
+      # plate_id, cartridge_id, pointing_id, boresight_ra, boresight_dec, hour_angle, temperature, wavelength
+      print "PointingInfoCB=",keyVar
+      plate = keyVar[0]
+      cartridge = keyVar[1]
+      pointing = keyVar[2]
+      # check that APOGEE (or MARVELS) is the current instrument - otherwise ignore new platedb info
+      if Apogeeql.inst not in ['APOGEE','MARVELS']:
+         return
+
+      if Apogeeql.plate != plate or Apogeeql.cartridge != cartridge or Apogeeql.pointing != pointing:
+         # we need to extract and pass a new plugmap to IDL QuickLook
+         plugInfo = Apogeeql.getPlugMap(cartridge, plate, pointing)
+         # pass the info to IDL QL
+         for s in Apogeeql.qlSources:
+            s.sendLine('plugfile=%s plateid=%s platemjd=%f' % (plugInfo['plugfile'], plugInfo['plateid'], plugInfo['mjd']))
+            for id, type, mag in plugInfo['fiberdata']:
+               s.sendLine('fiberid=%d objtype=%s mag=%f' % (id, type, mag))
+
+         Apogeeql.pointing = pointing
+         Apogeeql.plate = plate
+         Apogeeql.cartridge = cartridge
+
+   @staticmethod
+   def ExposureStateCB(keyVar):
+      '''callback routine for apogeeICC.exposureState '''
+      # exposureState state time time_left UTR_counter
+      # exposureState INTEGRATING 600.0 600.0 0    -> mark start of exposure
+      # exposureState UTR 0.0 590.0 1    -> mark first UTR read
+      # ...
+      # exposureState UTR 0.0 0.0 12   -> mark 12th UTR read
+      # exposureState DONE | ABORTED 0.0 0.0 0   -> mark end of UTR exposure
+      Apogeeql.expState=keyVar[0]
+      if keyVar[0] == 'INTEGRATING':
+         Apogeeql.startExp = True
+         Apogeeql.endExp = False
+         # we may have to do something special for QL at the start of a new exposure
+      elif keyVar[0] in ['DONE', 'ABORTED']:
+         Apogeeql.startExp = False
+         Apogeeql.endExp = True
+         # do something for the quickreduction at the end of an exposure
+         for s in Apogeeql.qlSources:
+            s.sendLine('UTR=DONE')
+      else:
+         Apogeeql.startExp = False
+
+   @staticmethod
+   def UTRfilenameCB(keyVar):
+      '''callback routine for apogeeICC.exposureState '''
+      # UTRfilename="apRaw-12345678-060.fits -> mark 60th UTR read
+      # exposureState DONE | ABORTED 0.0 0.0 0   -> mark end of UTR exposure
+      if Apogeeql.expState != "UTR":
+         return
+
+      filename=keyVar[0]
+      # create a new FITS file by appending the telescope fits keywords
+      newfilename = Apogeeql.appendFitsKeywords(Apogeeql.actor,filename)
+      print "newfilename=",newfilename
+      for s in Apogeeql.qlSources:
+         s.sendLine('UTR=%s' % (newfilename))
+
 
    def connectQuickLook(self):
       '''open a socket through htwisted to send/receive information to/from apogee_IDL'''
@@ -137,6 +236,7 @@ class Apogeeql(actorcore.Actor.Actor):
       except:
          self.logger.error("Failed to start the apogeeql_IDL process")
          traceback.print_exc()
+
 
    def stopQuickLook(self):
       '''If a quickLook IDL process already exists - just kill it (for now)'''
@@ -183,9 +283,39 @@ class Apogeeql(actorcore.Actor.Actor):
       #
       reactor.callLater(3, self.periodicStatus)
 
+   def appendFitsKeywords(self, filename):
+      '''make a copy of the input FITS file with added keywords'''
+      outFile=filename.replace('apRaw','ap')
+      if outFile == filename:
+         p = filename.find('-')
+         if p >= 0:
+            outFile = 'ap'+filename[p:]
+         else:
+            outFile = 'ap'+filename
+
+      outFile = os.path.join(self.imagedir, outFile)
+      filename = os.path.join(self.imagedir, filename)
+      hdulist = pyfits.open(filename, uint16=True)
+      hdulist[0].header.update('TELESCOP' , 'SDSS 2-5m')
+      hdulist[0].header.update('FILENAME' ,outFile)
+
+      cards=[]
+      cards.extend(actorFits.mcpCards(self.models, cmd=self.bcast))
+      cards.extend(actorFits.tccCards(self.models, cmd=self.bcast))
+      cards.extend(actorFits.plateCards(self.models, cmd=self.bcast))
+
+      for name, val, comment in cards:
+          try:
+              hdulist[0].header.update(name, val, comment)
+          except:
+              self.logger.warn('text="failed to add card: %s=%s (%s)"' % (name, val, comment))
+
+      hdulist.writeto(outFile)
+      return outFile
+
 
 def main():
-   apogeeql = Apogeeql('apogeeql', 'apogeeqlActor')
+   apogeeql = Apogeeql('apogeeql', 'apogeeql')
    apogeeql.connectQuickLook()
    #apogeeql.connectQuickReduce()
    apogeeql.startQuickLook()
