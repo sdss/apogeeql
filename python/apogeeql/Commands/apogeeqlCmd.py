@@ -37,26 +37,23 @@ class apogeeqlCmd(object):
 
    def ping(self, cmd):
       '''Query the actor for liveness/happiness.'''
-
       cmd.finish("text='Present and (probably) well'")
 
    def status(self, cmd):
       '''Report status and version; obtain and send current data'''
-
       self.actor.sendVersionKey(cmd)
       self.doStatus(cmd, flushCache=True)
 
    def update(self, cmd):
       '''Report status and version; obtain and send current data'''
-
       self.doStatus(cmd=cmd)
 
    def doStatus(self, cmd=None, flushCache=False, doFinish=True):
       '''Report full status'''
-
       if not cmd:
          cmd = self.actor.bcast
 
+      cmd.inform('snrAxisRange=%s,%s' % (self.actor.snrAxisRange[0],self.actor.snrAxisRange[1]))
       keyStrings = ['text="nothing to say, really"']
       keyMsg = '; '.join(keyStrings)
 
@@ -66,7 +63,6 @@ class apogeeqlCmd(object):
 
    def startIDL(self, cmd):
       '''Start a new IDL quicklook process'''
-
       if not cmd:
          cmd = self.actor.bcast
 
@@ -79,7 +75,6 @@ class apogeeqlCmd(object):
 
    def stopIDL(self, cmd):
       '''Stop the currently running IDL quicklook process if it exists'''
-
       if not cmd:
          cmd = self.actor.bcast
 
@@ -96,7 +91,6 @@ class apogeeqlCmd(object):
 
    def doSomething(self, cmd):
       """ Do something pointless. """
-
       cnt = cmd.cmd.keywords["count"].values[0]
       for i in range(cnt):
          cmd.inform('cnt=%d' % (i))
@@ -104,7 +98,6 @@ class apogeeqlCmd(object):
 
    def quicklook(self, cmd):
       """ command is addressed to the IDL quicklook process"""
-
       cmdString = cmd.cmd.keywords["cmd"].values[0]
       # pass the command string to the socket to quicklook_main.pro
       # print cmdString
@@ -114,7 +107,6 @@ class apogeeqlCmd(object):
 
    def passAlong(self, cmd):
       """ Pass a command along to another actor. """
-
       actor = cmd.cmd.keywords["actor"].values[0]
       cmdString = cmd.cmd.keywords["cmd"].values[0]
 
