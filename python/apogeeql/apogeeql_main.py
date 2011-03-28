@@ -5,6 +5,10 @@ from twisted.protocols.basic import LineReceiver
 from twisted.internet import reactor
 from twisted.internet.protocol import Protocol, Factory
 
+from platedb.db_connection import Session
+from platedb.ModelClasses import *
+import platedb.plPlugMapM as plPlugMapM
+
 import opscore.actor.model
 import opscore.actor.keyvar
 
@@ -20,8 +24,10 @@ import traceback
 # Import sdss3logging before logging if you want to use it
 #
 import logging
-import os, signal, subprocess
+import os, signal, subprocess, tempfile
 import types
+
+#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 class QuickLookLineServer(LineReceiver):
     def connectionMade(self):
@@ -35,7 +41,7 @@ class QuickLookLineServer(LineReceiver):
         # pass the default parameters to the IDL quicklook
         if self.factory.qlActor.ql_pid > 0:
            for s in self.factory.qlActor.qlSources:
-              s.sendLine('IMAGEDIR=%s' % (self.factory.qlActor.imagedir))
+              s.sendLine('DATADIR=%s' % (self.factory.qlActor.datadir))
 
 
     def lineReceived(self, line):
@@ -56,6 +62,8 @@ class QuickLookLineServer(LineReceiver):
     def sendcomment(self):
         logging.info("in the callback routine")
 
+#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
 class QuickReduceLineServer(LineReceiver):
     def connectionMade(self):
         self.peer = self.transport.getPeer()
@@ -74,16 +82,22 @@ class QuickReduceLineServer(LineReceiver):
     def connectionLost(self, reason):
         logging.info("Disconnected from %s %s"  % (self.peer.port, reason.value))
 
+#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
 class QLFactory(ClientFactory):
     protocol = QuickLookLineServer
     def __init__(self, qlActor): 
         self.qlActor=qlActor
+
+#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 class QRFactory(ClientFactory):
     protocol = QuickReduceLineServer
     def __init__(self, qrActor): 
         self.qrActor=qrActor
 
+
+#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 class Apogeeql(actorcore.Actor.Actor):
 
@@ -94,12 +108,16 @@ class Apogeeql(actorcore.Actor.Actor):
    qrSources=[]
    prevCartridge=-1
    prevPlate=-1
+   prevScanId = -1
+   prevScanMJD = -1
    prevPointing='A'
+   plugMapFilename = ''
    inst = ''
    startExp = False
    endExp = False
    expState=''
    actor=''
+   Session = ''
 
    def __init__(self, name, productName=None, configFile=None, debugLevel=30):
       actorcore.Actor.Actor.__init__(self, name, productName=productName, configFile=configFile)
@@ -109,7 +127,8 @@ class Apogeeql(actorcore.Actor.Actor):
 
       self.logger.setLevel(debugLevel)
       self.logger.propagate = True
-      self.imagedir = self.config.get('apogeeql', 'imagedir') 
+      self.datadir = self.config.get('apogeeql', 'datadir') 
+      self.spectrodir = self.config.get('apogeeql', 'spectrodir') 
 
       #
       # Explicitly load other actor models. We usually need these for FITS headers.
@@ -126,6 +145,18 @@ class Apogeeql(actorcore.Actor.Actor):
       self.models["apogeetest"].keyVarDict["exposureState"].addCallback(self.ExposureStateCB, callNow=False)
       self.models["apogeetest"].keyVarDict["UTRfilename"].addCallback(self.UTRfilenameCB, callNow=False)
 
+      """
+      print dir(self.models['platedb'])
+      print dir(self.models['platedb'].keyVarDict)
+      print self.models['platedb'].keyVarDict.items()
+      """
+
+      #
+      # Connect to the platedb
+      #
+      self.Session = Session
+      self.mysession = self.Session()
+
       #
       # Finally start the reactor
       #
@@ -141,26 +172,42 @@ class Apogeeql(actorcore.Actor.Actor):
    def PointingInfoCB(keyVar):
       '''callback routine for platedb.pointingInfo'''
       # plate_id, cartridge_id, pointing_id, boresight_ra, boresight_dec, hour_angle, temperature, wavelength
-      print "PointingInfoCB=",keyVar
+      # print "PointingInfoCB=",keyVar
       plate = keyVar[0]
       cartridge = keyVar[1]
       pointing = keyVar[2]
       # check that APOGEE (or MARVELS) is the current instrument - otherwise ignore new platedb info
-      if Apogeeql.inst not in ['APOGEE','MARVELS']:
+      # if Apogeeql.inst not in ['APOGEE','MARVELS']:
+      #   return
+
+      #print Apogeeql.actor.models['platedb'].keyVarDict['activePlugging']
+      if plate == None:
          return
 
-      if Apogeeql.plate != plate or Apogeeql.cartridge != cartridge or Apogeeql.pointing != pointing:
+      if plate != Apogeeql.prevPlate or cartridge != Apogeeql.prevCartridge or pointing != Apogeeql.prevPointing:
          # we need to extract and pass a new plugmap to IDL QuickLook
-         plugInfo = Apogeeql.getPlugMap(cartridge, plate, pointing)
+         # the line below doesn't work - need to wait for new database to be in place
+         pm = Apogeeql.actor.getPlPlugMapM(Apogeeql.actor.mysession, cartridge, plate, pointing)
+
+         # open a temporary file to save the blob from the database
+         f=tempfile.NamedTemporaryFile(delete=False,dir='/tmp',prefix=os.path.splitext(pm.filename)[0]+'.')
+         f.write(pm.file)
+         f.close()
+
          # pass the info to IDL QL
          for s in Apogeeql.qlSources:
-            s.sendLine('plugfile=%s plateid=%s platemjd=%f' % (plugInfo['plugfile'], plugInfo['plateid'], plugInfo['mjd']))
-            for id, type, mag in plugInfo['fiberdata']:
-               s.sendLine('fiberid=%d objtype=%s mag=%f' % (id, type, mag))
+            s.sendLine('plugMapInfo=%s,%s,%s,%s' % (plate, pm.fscan_mjd, pm.fscan_id, f.name))
 
-         Apogeeql.pointing = pointing
-         Apogeeql.plate = plate
-         Apogeeql.cartridge = cartridge
+         Apogeeql.plugMapFilename = '%s' % (f.name)
+         print 'plugMapFilename=%s' % (Apogeeql.plugMapFilename)
+         Apogeeql.prevPointing = pointing
+         Apogeeql.prevPlate = plate
+         Apogeeql.prevCartridge = cartridge
+         Apogeeql.prevScanId = pm.fscan_id
+         Apogeeql.prevScanMJD = pm.fscan_mjd
+
+         # we need to query the database and get all the previous apogee exposures with this plate
+         # to populate the table on the right of the STUI quicklook window
 
    @staticmethod
    def ExposureStateCB(keyVar):
@@ -228,8 +275,7 @@ class Apogeeql(actorcore.Actor.Actor):
          qlCommand = self.config.get('apogeeql','qlCommandName')
          qlCommand = qlCommand.strip('"')
          # this adds the arguments to the IDL command line
-         qlCommand += " -args %s %s" % (self.qlHost, self.qlPort)
-         # print 'qlCommand=',qlCommand.split()
+         qlCommand += " -args %s %s data_dir=%s spectro_dir=%s" % (self.qlHost, self.qlPort, self.datadir, self.spectrodir)
          # Popen does NOWAIT by default
          ql_process = subprocess.Popen(qlCommand.split(), stderr=subprocess.STDOUT)
          self.ql_pid = ql_process.pid
@@ -293,8 +339,8 @@ class Apogeeql(actorcore.Actor.Actor):
          else:
             outFile = 'ap'+filename
 
-      outFile = os.path.join(self.imagedir, outFile)
-      filename = os.path.join(self.imagedir, filename)
+      outFile = os.path.join(self.datadir, outFile)
+      filename = os.path.join(self.datadir, filename)
       hdulist = pyfits.open(filename, uint16=True)
       hdulist[0].header.update('TELESCOP' , 'SDSS 2-5m')
       hdulist[0].header.update('FILENAME' ,outFile)
@@ -313,6 +359,48 @@ class Apogeeql(actorcore.Actor.Actor):
       hdulist.writeto(outFile)
       return outFile
 
+
+   def getPlPlugMapM(self, session, cartridgeId, plateId, pointingName):
+       """Return the plPlugMapM given a plateId and pointingName"""
+
+       from sqlalchemy import and_
+
+       plugging = session.query(Plugging).join(ActivePlugging).join(Cartridge).\
+                    order_by(Cartridge.number).all()
+
+       plugging = [p for p in plugging if p.cartridge.number == cartridgeId]
+
+       if len(plugging) == 0:
+            raise RuntimeError, ( "No plugging found with cartridgeId = %d" % (cartridgeId)) 
+       elif len(plugging) != 1:
+            raise RuntimeError, ( "More than one found with cartridgeId = %d" % (cartridgeId)) 
+       else:
+          plugging=plugging[0]
+
+       """
+       print 'plugging=',plugging.plate.plate_id
+       print 'plugging.fscan_id=',plugging.fscan_id
+       print 'plugging.fscan_mjd=',plugging.fscan_mjd
+       """
+
+       pm = session.query(PlPlugMapM).join(Plugging).\
+            filter(and_(PlPlugMapM.fscan_id == plugging.fscan_id,
+                        PlPlugMapM.fscan_mjd == plugging.fscan_mjd,
+                        PlPlugMapM.plugging == plugging))
+
+       if pm.count() != 1:
+           if pointingName:
+               pm = [p for p in pm if p.pointing_name == pointingName]
+
+           if len(pm) != 1:
+               # Look for the correct pointing
+               raise RuntimeError, (
+                   "Found more than one plugging/plPlugMapM pairing with fscan_mjd, fscan_id = %s, %d; %s" % (
+                   plugging.fscan_mjd, plugging.fscan_id, [p.pointing_name for p in pm]))
+
+       return pm[0]
+
+#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 def main():
    apogeeql = Apogeeql('apogeeql', 'apogeeql')
