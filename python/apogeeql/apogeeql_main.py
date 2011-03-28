@@ -129,6 +129,7 @@ class Apogeeql(actorcore.Actor.Actor):
       self.logger.propagate = True
       self.datadir = self.config.get('apogeeql', 'datadir') 
       self.spectrodir = self.config.get('apogeeql', 'spectrodir') 
+      self.snrAxisRange = [self.config.get('apogeeql','snrAxisMin'), self.config.get('apogeeql','snrAxisMax')]
 
       #
       # Explicitly load other actor models. We usually need these for FITS headers.
@@ -186,7 +187,6 @@ class Apogeeql(actorcore.Actor.Actor):
 
       if plate != Apogeeql.prevPlate or cartridge != Apogeeql.prevCartridge or pointing != Apogeeql.prevPointing:
          # we need to extract and pass a new plugmap to IDL QuickLook
-         # the line below doesn't work - need to wait for new database to be in place
          pm = Apogeeql.actor.getPlPlugMapM(Apogeeql.actor.mysession, cartridge, plate, pointing)
 
          # open a temporary file to save the blob from the database
@@ -309,7 +309,7 @@ class Apogeeql(actorcore.Actor.Actor):
       if killedpid == 0:
          # failed in killing old IDL process
          # print error message here
-         self.logger.warn("Unable to kill existing apogeeql_IDL process %s" % self.ql_id)
+         self.logger.warn("Unable to kill existing apogeeql_IDL process %s" % self.ql_pid)
       else:
          self.ql_pid = 0
 
@@ -323,7 +323,6 @@ class Apogeeql(actorcore.Actor.Actor):
 
    def connectionMade(self):
       '''Runs this after connection is made to the hub'''
-
       #
       # Schedule an update.
       #
@@ -331,13 +330,13 @@ class Apogeeql(actorcore.Actor.Actor):
 
    def appendFitsKeywords(self, filename):
       '''make a copy of the input FITS file with added keywords'''
-      outFile=filename.replace('apRaw','ap')
+      outFile=filename.replace('apRaw','apRAW')
       if outFile == filename:
          p = filename.find('-')
          if p >= 0:
-            outFile = 'ap'+filename[p:]
+            outFile = 'apRAW'+filename[p:]
          else:
-            outFile = 'ap'+filename
+            outFile = 'apRAW'+filename
 
       outFile = os.path.join(self.datadir, outFile)
       filename = os.path.join(self.datadir, filename)
