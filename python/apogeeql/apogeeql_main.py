@@ -102,6 +102,7 @@ class Apogeeql(actorcore.Actor.Actor):
       self.ics_datadir = self.config.get('apogeeql', 'ics_datadir') 
       self.datadir = self.config.get('apogeeql', 'datadir') 
       self.spectrodir = self.config.get('apogeeql', 'spectrodir') 
+      self.archivedir = self.config.get('apogeeql', 'archivedir') 
       self.snrAxisRange = [self.config.get('apogeeql','snrAxisMin'), self.config.get('apogeeql','snrAxisMax')]
       self.rootURL = self.config.get('apogeeql','rootURL')
 
@@ -244,7 +245,8 @@ class Apogeeql(actorcore.Actor.Actor):
          qlCommand = self.config.get('apogeeql','qlCommandName')
          qlCommand = qlCommand.strip('"')
          # this adds the arguments to the IDL command line
-         qlCommand += " -args %s %s data_dir=%s spectro_dir=%s" % (self.qlHost, self.qlPort, self.datadir, self.spectrodir)
+         qlCommand += " -args %s %s data_dir=%s spectro_dir=%s archive_dir=%s" % \
+               (self.qlHost, self.qlPort, self.datadir, self.spectrodir, self.archivedir)
          # Popen does NOWAIT by default
          ql_process = subprocess.Popen(qlCommand.split(), stderr=subprocess.STDOUT)
          self.ql_pid = ql_process.pid
