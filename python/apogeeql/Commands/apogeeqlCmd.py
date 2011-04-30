@@ -53,6 +53,7 @@ class apogeeqlCmd(object):
       if not cmd:
          cmd = self.actor.bcast
 
+      cmd.inform('rootURL=%s' % (self.actor.rootURL))
       cmd.inform('snrAxisRange=%s,%s' % (self.actor.snrAxisRange[0],self.actor.snrAxisRange[1]))
       keyStrings = ['text="nothing to say, really"']
       keyMsg = '; '.join(keyStrings)
