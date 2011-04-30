@@ -52,9 +52,9 @@ class QuickLookLineServer(LineReceiver):
             logging.info("preparing callback")
             reactor.callLater(5.0,self.sendcomment)
         else:
-            # normal message processing from the apogeeql_IDL
-            # self.sendLine(line)
-            print 'Received from quicklook_main.pro: ',line
+            # assume the messages are properly formatted to pass along
+            print 'Received from apql_wrapper.pro: ',line
+            self.factory.qlActor.bcast.finish(line)
 
     def connectionLost(self, reason):
         logging.info("Disconnected from %s %s"  % (self.peer.port, reason.value))
@@ -62,25 +62,6 @@ class QuickLookLineServer(LineReceiver):
     def sendcomment(self):
         logging.info("in the callback routine")
 
-#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-
-class QuickReduceLineServer(LineReceiver):
-    def connectionMade(self):
-        self.peer = self.transport.getPeer()
-        self.factory.qrActor.qrSources.append(self)
-        # print "Connected from", self.peer
-        self.transport.write("print,2+2\r\n") 
-
-    def lineReceived(self, line):
-        if line==self.end:
-            # request to disconnect
-            self.transport.loseConnection()
-        else:
-            # normal message processing from the apogeeql_IDL
-            self.sendLine(line)
-
-    def connectionLost(self, reason):
-        logging.info("Disconnected from %s %s"  % (self.peer.port, reason.value))
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
@@ -88,14 +69,6 @@ class QLFactory(ClientFactory):
     protocol = QuickLookLineServer
     def __init__(self, qlActor): 
         self.qlActor=qlActor
-
-#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-
-class QRFactory(ClientFactory):
-    protocol = QuickReduceLineServer
-    def __init__(self, qrActor): 
-        self.qrActor=qrActor
-
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
@@ -111,7 +84,6 @@ class Apogeeql(actorcore.Actor.Actor):
    prevScanId = -1
    prevScanMJD = -1
    prevPointing='A'
-   plugMapFilename = ''
    inst = ''
    startExp = False
    endExp = False
@@ -127,9 +99,11 @@ class Apogeeql(actorcore.Actor.Actor):
 
       self.logger.setLevel(debugLevel)
       self.logger.propagate = True
+      self.ics_datadir = self.config.get('apogeeql', 'ics_datadir') 
       self.datadir = self.config.get('apogeeql', 'datadir') 
       self.spectrodir = self.config.get('apogeeql', 'spectrodir') 
       self.snrAxisRange = [self.config.get('apogeeql','snrAxisMin'), self.config.get('apogeeql','snrAxisMax')]
+      self.rootURL = self.config.get('apogeeql','rootURL')
 
       #
       # Explicitly load other actor models. We usually need these for FITS headers.
@@ -190,16 +164,18 @@ class Apogeeql(actorcore.Actor.Actor):
          pm = Apogeeql.actor.getPlPlugMapM(Apogeeql.actor.mysession, cartridge, plate, pointing)
 
          # open a temporary file to save the blob from the database
-         f=tempfile.NamedTemporaryFile(delete=False,dir='/tmp',prefix=os.path.splitext(pm.filename)[0]+'.')
+         # f=tempfile.NamedTemporaryFile(delete=False,dir='/tmp',prefix=os.path.splitext(pm.filename)[0]+'.')
+         # the same file is used over and over again 
+         fname = '/tmp/apoge_latest_plate.par'
+         f=open(fname,'w+')
          f.write(pm.file)
          f.close()
 
          # pass the info to IDL QL
          for s in Apogeeql.qlSources:
-            s.sendLine('plugMapInfo=%s,%s,%s,%s' % (plate, pm.fscan_mjd, pm.fscan_id, f.name))
+            s.sendLine('plugMapInfo=%s,%s,%s,%s' % (plate, pm.fscan_mjd, pm.fscan_id, fname))
 
-         Apogeeql.plugMapFilename = '%s' % (f.name)
-         print 'plugMapFilename=%s' % (Apogeeql.plugMapFilename)
+         # print 'plugMapFilename=%s' % (fname)
          Apogeeql.prevPointing = pointing
          Apogeeql.prevPlate = plate
          Apogeeql.prevCartridge = cartridge
@@ -255,13 +231,6 @@ class Apogeeql(actorcore.Actor.Actor):
       self.qlHost = self.config.get('apogeeql', 'qlHost') 
       reactor.listenTCP(self.qlPort, QLFactory(self))
 
-   def connectQuickReduce(self):
-      '''open a socket through htwisted to send/receive information to/from apogee_IDL'''
-      # get the port from the configuratio file 
-      self.qrPort = self.config.getint('apogeeql', 'qrPort') 
-      self.qrHost = self.config.get('apogeeql', 'qrHost') 
-      reactor.listenTCP(self.qrPort, QLFactory(self))
-
    def startQuickLook(self):
       '''Open a twisted reactor to communicate with IDL socket'''
       #
@@ -269,7 +238,7 @@ class Apogeeql(actorcore.Actor.Actor):
       if self.ql_pid > 0:
          self.stopQuickLook()
 
-      # spawn the apogeeql_IDL process and don't wait for its completion
+      # spawn the apogeeql IDL process and don't wait for its completion
       try:
          # get the string corresponding to the command to start the IDL quicklook process
          qlCommand = self.config.get('apogeeql','qlCommandName')
@@ -288,7 +257,7 @@ class Apogeeql(actorcore.Actor.Actor):
       '''If a quickLook IDL process already exists - just kill it (for now)'''
       if self.ql_pid == 0:
          p1=subprocess.Popen(['/bin/ps'],stdout=subprocess.PIPE)
-         # quicklook_main is the name of the program ran when starting IDL (in apogeeql.cfg)
+         # apql_wrapper is the name of the program ran when starting IDL (in apogeeql.cfg)
          processName = (self.config.get('apogeeql','qlCommandName')).split()
          if '-e' in processName:
             # look at the name of the program called when IDL is started
@@ -330,16 +299,27 @@ class Apogeeql(actorcore.Actor.Actor):
 
    def appendFitsKeywords(self, filename):
       '''make a copy of the input FITS file with added keywords'''
-      outFile=filename.replace('apRaw','apRAW')
-      if outFile == filename:
-         p = filename.find('-')
-         if p >= 0:
-            outFile = 'apRAW'+filename[p:]
-         else:
-            outFile = 'apRAW'+filename
 
-      outFile = os.path.join(self.datadir, outFile)
-      filename = os.path.join(self.datadir, filename)
+      # we need to form the paths where the file can be found and written
+      # expecting something like: apRaw-DDDDXXXX-RRR.fits
+      # where:
+      # DDDD is a 4 digit day number starting with 0000 for Jan 1, 2011 which is MJD=55562
+      # XXXX is a 4 digit exposure number of the day, starting with 0001 
+      # RRR is a 3 digit read number starting with 001 for the first read
+      #
+      # We are using the SDSS version of MJD which is MJD+0.3 days, which
+      # rolls over at 9:48 am MST.
+      #
+      # the directories are organized by day, as /$root_dir/DDDD/
+      #
+      res=filename.split('-')
+      indir=self.ics_datadir
+      outdir = self.datadir
+      if len(res) == 3:
+         indir  = os.path.join(self.ics_datadir,res[1][:4])
+         outdir = os.path.join(self.datadir,res[1][:4])
+      filename = os.path.join(indir, filename)
+      outFile = os.path.join(outdir, outFile)
       hdulist = pyfits.open(filename, uint16=True)
       hdulist[0].header.update('TELESCOP' , 'SDSS 2-5m')
       hdulist[0].header.update('FILENAME' ,outFile)
@@ -404,7 +384,6 @@ class Apogeeql(actorcore.Actor.Actor):
 def main():
    apogeeql = Apogeeql('apogeeql', 'apogeeql')
    apogeeql.connectQuickLook()
-   #apogeeql.connectQuickReduce()
    apogeeql.startQuickLook()
    apogeeql.run()
 
