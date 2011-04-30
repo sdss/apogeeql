@@ -1,5 +1,6 @@
 #declareOptions(flavor=NULL,   name = foo)
-setupRequired(apogeereduce)
+#setupRequired(apogeereduce)
+setupRequired(apgquicklook)
 setupRequired(apogeetest)
 setupRequired(actorcore)
 setupRequired(opscore)
