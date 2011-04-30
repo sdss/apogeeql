@@ -108,6 +108,8 @@ class Apogeeql(actorcore.Actor.Actor):
          self.logger.error("Failed: APGDATA_DIR is not defined")
          traceback.print_exc()
 
+      # MJD value of start of survey (Jan 1 2011) for filenames
+      self.startOfSurvey = 55562  
       self.snrAxisRange = [self.config.get('apogeeql','snrAxisMin'), self.config.get('apogeeql','snrAxisMax')]
       self.rootURL = self.config.get('apogeeql','rootURL')
 
@@ -323,7 +325,8 @@ class Apogeeql(actorcore.Actor.Actor):
       outdir = self.datadir
       if len(res) == 3:
          indir  = os.path.join(self.ics_datadir,res[1][:4])
-         outdir = os.path.join(self.datadir,res[1][:4])
+         mjd = int(res[1][:4]) + self.startOfSurvey
+         outdir = os.path.join(self.datadir,str(mjd))
       filename = os.path.join(indir, filename)
       outFile = os.path.join(outdir, outFile)
       hdulist = pyfits.open(filename, uint16=True)
