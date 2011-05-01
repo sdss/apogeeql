@@ -26,6 +26,7 @@ import traceback
 import logging
 import os, signal, subprocess, tempfile
 import types
+import yanny
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
@@ -170,6 +171,9 @@ class Apogeeql(actorcore.Actor.Actor):
       if plate != Apogeeql.prevPlate or cartridge != Apogeeql.prevCartridge or pointing != Apogeeql.prevPointing:
          # we need to extract and pass a new plugmap to IDL QuickLook
          pm = Apogeeql.actor.getPlPlugMapM(Apogeeql.actor.mysession, cartridge, plate, pointing)
+
+         # routine returns a yanny par file
+         apg_yanny = Apogeeql.actor.makeApogeePlugMap(pm.file)
 
          # open a temporary file to save the blob from the database
          # f=tempfile.NamedTemporaryFile(delete=False,dir='/tmp',prefix=os.path.splitext(pm.filename)[0]+'.')
@@ -387,6 +391,81 @@ class Apogeeql(actorcore.Actor.Actor):
                    plugging.fscan_mjd, plugging.fscan_id, [p.pointing_name for p in pm]))
 
        return pm[0]
+
+   def makeApogeePlugMap(self, session, cartridgeId, plateId, pointingName):
+       """Return the plPlugMapM given a plateId and pointingName"""
+
+       from sqlalchemy import and_
+
+       plugging = session.query(Plugging).join(ActivePlugging).join(Cartridge).\
+                    order_by(Cartridge.number).all()
+
+       plugging = [p for p in plugging if p.cartridge.number == cartridgeId]
+
+       if len(plugging) == 0:
+            raise RuntimeError, ( "No plugging found with cartridgeId = %d" % (cartridgeId)) 
+       elif len(plugging) != 1:
+            raise RuntimeError, ( "More than one found with cartridgeId = %d" % (cartridgeId)) 
+       else:
+          plugging=plugging[0]
+
+       """
+       print 'plugging=',plugging.plate.plate_id
+       print 'plugging.fscan_id=',plugging.fscan_id
+       print 'plugging.fscan_mjd=',plugging.fscan_mjd
+       """
+
+       pm = session.query(PlPlugMapM).join(Plugging).\
+            filter(and_(PlPlugMapM.fscan_id == plugging.fscan_id,
+                        PlPlugMapM.fscan_mjd == plugging.fscan_mjd,
+                        PlPlugMapM.plugging == plugging))
+
+       if pm.count() != 1:
+           if pointingName:
+               pm = [p for p in pm if p.pointing_name == pointingName]
+
+           if len(pm) != 1:
+               # Look for the correct pointing
+               raise RuntimeError, (
+                   "Found more than one plugging/plPlugMapM pairing with fscan_mjd, fscan_id = %s, %d; %s" % (
+                   plugging.fscan_mjd, plugging.fscan_id, [p.pointing_name for p in pm]))
+
+       # get the needed information from the plate_hole 
+       ph = session.query(PlateHole).join(Fiber).order_by(Fiber.fiber_id).\
+             filter(and_(Fiber.pl_plugmap_m_pk == pm[0].pk,
+                         Fiber.plate_hole_pk == PlateHole.pk))
+                         
+
+       # get the needed information from the fiber, plate_hole and catalog_object tables
+
+       
+
+       # append to the standard plPlugMap to add 2mass_style and J, H, Ks mags
+       par = yanny.yanny()
+       par._contents = pm[0].file
+       par._parse()
+       p0=par
+       # update the definition of PLUGMAPOBJ
+       pos=0
+       for t in p0.tables():
+          if t=='PLUGMAPOBJ':
+             p0['symbols']['struct'][pos] = (p0['symbols']['struct'][pos]).replace('secTarget;','secTarget;\n char tmass_style[30];')
+             break
+          else:
+             pos+=1
+       
+       p0['symbols']['PLUGMAPOBJ'].append('tmass_style')
+
+       # create the new array to add to the file
+       tmass_style=[]
+       mag = [len(p0['PLUGMAPOBJ']['mag'][0])][]
+       for i in range(p0.size('PLUGMAPOBJ')):
+          tmass_style.append('something')
+
+       p0['PLUBMAPOBJ']['tmass_style']=tmass_style
+
+
+       return p0
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
