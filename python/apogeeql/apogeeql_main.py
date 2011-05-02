@@ -104,9 +104,9 @@ class Apogeeql(actorcore.Actor.Actor):
       # environment variable set by the apgquicklook setup 
       # (don't want to keep it in 2 different places)
       try:
-         self.datadir = os.environ["APGDATA_DIR"]
+         self.datadir = os.environ["APQLDATA_DIR"]
       except:
-         self.logger.error("Failed: APGDATA_DIR is not defined")
+         self.logger.error("Failed: APQLDATA_DIR is not defined")
          traceback.print_exc()
 
       # MJD value of start of survey (Jan 1 2011) for filenames
@@ -173,7 +173,7 @@ class Apogeeql(actorcore.Actor.Actor):
          pm = Apogeeql.actor.getPlPlugMapM(Apogeeql.actor.mysession, cartridge, plate, pointing)
 
          # routine returns a yanny par file
-         apg_yanny = Apogeeql.actor.makeApogeePlugMap(pm.file)
+         # apg_yanny = Apogeeql.actor.makeApogeePlugMap(pm.file)
 
          # open a temporary file to save the blob from the database
          # f=tempfile.NamedTemporaryFile(delete=False,dir='/tmp',prefix=os.path.splitext(pm.filename)[0]+'.')
@@ -392,46 +392,13 @@ class Apogeeql(actorcore.Actor.Actor):
 
        return pm[0]
 
-   def makeApogeePlugMap(self, session, cartridgeId, plateId, pointingName):
+   def makeApogeePlugMap(self, plplugmap_file):
        """Return the plPlugMapM given a plateId and pointingName"""
 
        from sqlalchemy import and_
 
-       plugging = session.query(Plugging).join(ActivePlugging).join(Cartridge).\
-                    order_by(Cartridge.number).all()
-
-       plugging = [p for p in plugging if p.cartridge.number == cartridgeId]
-
-       if len(plugging) == 0:
-            raise RuntimeError, ( "No plugging found with cartridgeId = %d" % (cartridgeId)) 
-       elif len(plugging) != 1:
-            raise RuntimeError, ( "More than one found with cartridgeId = %d" % (cartridgeId)) 
-       else:
-          plugging=plugging[0]
-
-       """
-       print 'plugging=',plugging.plate.plate_id
-       print 'plugging.fscan_id=',plugging.fscan_id
-       print 'plugging.fscan_mjd=',plugging.fscan_mjd
-       """
-
-       pm = session.query(PlPlugMapM).join(Plugging).\
-            filter(and_(PlPlugMapM.fscan_id == plugging.fscan_id,
-                        PlPlugMapM.fscan_mjd == plugging.fscan_mjd,
-                        PlPlugMapM.plugging == plugging))
-
-       if pm.count() != 1:
-           if pointingName:
-               pm = [p for p in pm if p.pointing_name == pointingName]
-
-           if len(pm) != 1:
-               # Look for the correct pointing
-               raise RuntimeError, (
-                   "Found more than one plugging/plPlugMapM pairing with fscan_mjd, fscan_id = %s, %d; %s" % (
-                   plugging.fscan_mjd, plugging.fscan_id, [p.pointing_name for p in pm]))
-
        # get the needed information from the plate_hole 
-       ph = session.query(PlateHole).join(Fiber).order_by(Fiber.fiber_id).\
+       ph = self.session.query(PlateHole).join(Fiber).order_by(Fiber.fiber_id).\
              filter(and_(Fiber.pl_plugmap_m_pk == pm[0].pk,
                          Fiber.plate_hole_pk == PlateHole.pk))
                          
@@ -458,7 +425,8 @@ class Apogeeql(actorcore.Actor.Actor):
 
        # create the new array to add to the file
        tmass_style=[]
-       mag = [len(p0['PLUGMAPOBJ']['mag'][0])][]
+       size=len(p0['PLUGMAPOBJ']['mag'][0])
+       # mag = [size][]
        for i in range(p0.size('PLUGMAPOBJ')):
           tmass_style.append('something')
 
