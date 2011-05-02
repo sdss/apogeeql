@@ -26,6 +26,7 @@ class apogeeqlCmd(object):
       # Declare commands
       #
       self.vocab = [
+         ('ping', '', self.ping),
          ('status', '', self.status),
          ('update', '', self.update),
          ('stopidl', '', self.stopIDL),
