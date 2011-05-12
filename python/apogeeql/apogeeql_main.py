@@ -8,6 +8,7 @@ from twisted.internet.protocol import Protocol, Factory
 # the APOTestDatabaseconnection will make version v1_0_6 of platedb
 # work (with the new hooloovookit stuff) - requires version v1_0_6 of later
 from platedb.APOTestDatabaseConnection import db
+#from platedb.APODatabaseConnection import db
 from platedb.ModelClasses import *
 import platedb.plPlugMapM as plPlugMapM
 from catalogdb.ModelClasses import *
@@ -28,6 +29,7 @@ import traceback
 #
 import logging
 import os, signal, subprocess, tempfile, shutil
+import time
 import types
 import yanny
 
@@ -62,10 +64,6 @@ class QuickLookLineServer(LineReceiver):
         if line=='quit':
             # request to disconnect
             self.transport.loseConnection()
-            self.transport.loseConnection()
-        if line=='quit':
-            # request to disconnect
-            self.transport.loseConnection()
         elif line == "callback":
             logging.info("preparing callback")
             reactor.callLater(5.0,self.sendcomment)
@@ -87,6 +85,52 @@ class QLFactory(ClientFactory):
     protocol = QuickLookLineServer
     def __init__(self, qlActor): 
         self.qlActor=qlActor
+
+#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+class QuickRedLineServer(LineReceiver):
+    def connectionMade(self):
+        # the IDL end-of-line string is linefeed only (no carriage-return) 
+        # we need to change the delimiter to be able to detect a full line
+        # and have lineReceived method be called (otherwise it just sits there)
+        self.delimiter = '\n'
+        self.peer = self.transport.getPeer()
+        self.factory.qrActor.qrSources.append(self)
+        print "Connection from ", self.peer.host, self.peer.port
+        # ping the quicklook
+        if self.factory.qrActor.ql_pid > 0:
+           for s in self.factory.qrActor.qrSources:
+              s.sendLine('PING')
+              s.sendLine('STARTING')
+
+    def lineReceived(self, line):
+        if line.upper()=='PONG':
+            # normal response from aliveness test
+            self.factory.qrActor.watchDogStatus = True
+        if line=='quit':
+            # request to disconnect
+            self.transport.loseConnection()
+        elif line == "callback":
+            logging.info("preparing callback")
+            reactor.callLater(5.0,self.sendcomment)
+        else:
+            # assume the messages are properly formatted to pass along
+            print 'Received from apqr_wrapper.pro: ',line
+            self.factory.qrActor.bcast.finish(line)
+
+    def connectionLost(self, reason):
+        logging.info("Disconnected from %s %s"  % (self.peer.port, reason.value))
+
+    def sendcomment(self):
+        logging.info("in the callback routine")
+
+
+#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+class QRFactory(ClientFactory):
+    protocol = QuickRedLineServer
+    def __init__(self, qrActor): 
+        self.qrActor=qrActor
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
@@ -119,6 +163,7 @@ class Apogeeql(actorcore.Actor.Actor):
    cdr_dir = ''
    summary_dir = ''
    mysession=''
+   frameid = ''
 
    # setup the variables for the watchdog to the IDL code
    watchDogStatus=True  # if True, the idl code is stil responding
@@ -132,6 +177,8 @@ class Apogeeql(actorcore.Actor.Actor):
 
       self.logger.setLevel(debugLevel)
       self.logger.propagate = True
+      self.logger.info('Starting the Apogeeql Actor ...')
+
       # only the ics_datadir is defined in the cfg file - expect the datadir to be an
       # environment variable set by the apgquicklook setup 
       # (don't want to keep it in 2 different places)
@@ -149,13 +196,17 @@ class Apogeeql(actorcore.Actor.Actor):
       self.ics_datadir = self.config.get('apogeeql','ics_datadir')
       self.cdr_dir = self.config.get('apogeeql','cdr_dir')
       self.summary_dir = self.config.get('apogeeql','summary_dir')
+      self.qlPort = self.config.getint('apogeeql', 'qlPort') 
+      self.qlHost = self.config.get('apogeeql', 'qlHost') 
+      self.qrPort = self.config.getint('apogeeql', 'qrPort') 
+      self.qrHost = self.config.get('apogeeql', 'qrHost') 
 
       #
       # Explicitly load other actor models. We usually need these for FITS headers.
       #
       self.models = {}
       # for actor in ["mcp", "guider", "platedb", "tcc", "apo", "apogeetest"]:
-      for actor in ["mcp", "guider", "platedb", "tcc", "apogee", "apogeecal"]:
+      for actor in ["mcp", "guider", "platedb", "tcc", "apogeetest", "apogeecal"]:
          self.models[actor] = opscore.actor.model.Model(actor)
 
       #
@@ -163,13 +214,12 @@ class Apogeeql(actorcore.Actor.Actor):
       #
       self.models["tcc"].keyVarDict["inst"].addCallback(self.TCCInstCB, callNow=False)
       self.models["platedb"].keyVarDict["pointingInfo"].addCallback(self.PointingInfoCB, callNow=False)
-      self.models["apogee"].keyVarDict["exposureState"].addCallback(self.ExposureStateCB, callNow=False)
-      self.models["apogee"].keyVarDict["exposureWroteFile"].addCallback(self.exposureWroteFileCB, callNow=False)
-      self.models["apogee"].keyVarDict["exposureWroteSummary"].addCallback(self.exposureWroteSummaryCB, callNow=False)
-      self.models["apogeecal"].keyVarDict["calSourceStatus"].addCallback(self.calSourceStatusCB, callNow=False)
-      #self.models["apogeetest"].keyVarDict["exposureState"].addCallback(self.ExposureStateCB, callNow=False)
-      #self.models["apogeetest"].keyVarDict["exposureWroteFile"].addCallback(self.exposureWroteFileCB, callNow=False)
-      #self.models["apogeetest"].keyVarDict["exposureWroteSummary"].addCallback(self.exposureWroteSummaryCB, callNow=False)
+      #self.models["apogee"].keyVarDict["exposureState"].addCallback(self.ExposureStateCB, callNow=False)
+      #self.models["apogee"].keyVarDict["exposureWroteFile"].addCallback(self.exposureWroteFileCB, callNow=False)
+      #self.models["apogee"].keyVarDict["exposureWroteSummary"].addCallback(self.exposureWroteSummaryCB, callNow=False)
+      self.models["apogeetest"].keyVarDict["exposureState"].addCallback(self.ExposureStateCB, callNow=False)
+      self.models["apogeetest"].keyVarDict["exposureWroteFile"].addCallback(self.exposureWroteFileCB, callNow=False)
+      self.models["apogeetest"].keyVarDict["exposureWroteSummary"].addCallback(self.exposureWroteSummaryCB, callNow=False)
 
       #
       # Connect to the platedb
@@ -195,13 +245,6 @@ class Apogeeql(actorcore.Actor.Actor):
       if keyVar[1] == None:
          return
 
-      print '\n\n********************************************\n\n'
-      print 'inside PointingInfoCB'
-      print 'keyVar[0]=',keyVar[0]
-      print 'keyVar[1]=',keyVar[1]
-      print 'keyVar[2]=',keyVar[2]
-      print 'keyVar[3]=',keyVar[3]
-      print '\n\n********************************************\n\n'
       plate = keyVar[0]
       cartridge = keyVar[1]
       pointing = keyVar[2]
@@ -211,8 +254,9 @@ class Apogeeql(actorcore.Actor.Actor):
       """
       MODIFIED TO TESTING QUICKLOOK ON TEST DATABASE WITH SIMULATED DATA AND FAKE ICS
       """
-      cartridge = 1
-      plate = 4817
+
+      cartridge = 3
+      plate = 4918
       pointing = 'A'
       """
       cartridge = 1
@@ -220,9 +264,7 @@ class Apogeeql(actorcore.Actor.Actor):
       pointing = 'A'
       """
 
-
-      # if Apogeeql.inst not in ['APOGEE','MARVELS']:
-      #   return
+      # we need to ignore all plates that are not for APOGEE or MARVELS
 
       print Apogeeql.actor.models['platedb'].keyVarDict['activePlugging']
 
@@ -296,9 +338,14 @@ class Apogeeql(actorcore.Actor.Actor):
             Apogeeql.endExp = True
             Apogeeql.expType = keyVar[1].upper()
             Apogeeql.numReadsCommanded = 0
+            res = keyVar[3].split('-')
+            Apogeeql.frameid = res[1][:8]
+            mjd5 = int(Apogeeql.frameid[:4]) + Apogeeql.startOfSurvey
             # do something for the quickreduction at the end of an exposure
             for s in Apogeeql.qlSources:
                s.sendLine('UTR=DONE')
+            for s in Apogeeql.qrSources:
+               s.sendLine('UTR=DONE,%s,%d,%s' % (Apogeeql.frameid, mjd5, Apogeeql.exp_pk))
       else:
          Apogeeql.startExp = False
 
@@ -322,7 +369,6 @@ class Apogeeql(actorcore.Actor.Actor):
       if not keyVar.isGenuine:
          return
 
-
       filename=keyVar[0]
       if filename == None:
          return
@@ -345,18 +391,19 @@ class Apogeeql(actorcore.Actor.Actor):
 
       if readnum == 1:
          # get the corresponding platedb.observation.pk (creating a new one if necessary)
-         Apogeeql.actor.obs_pk = Apogeeql.getObservationPk(Apogeeql.actor, Apogeeql.actor.mysession, \
+         Apogeeql.obs_pk = Apogeeql.getObservationPk(Apogeeql.actor, Apogeeql.actor.mysession, \
                Apogeeql.prevCartridge, Apogeeql.prevPlate, Apogeeql.prevPointing, Apogeeql.pluggingPk, mjd)
 
          # insert a new entry in the platedb.exposure table (one per UTR exposure)
-         Apogeeql.actor.exp_pk = Apogeeql.getExposurePk(Apogeeql.actor, Apogeeql.actor.mysession, Apogeeql.actor.obs_pk, \
+         Apogeeql.exp_pk = Apogeeql.getExposurePk(Apogeeql.actor, Apogeeql.actor.mysession, Apogeeql.actor.obs_pk, \
                readnum, starttime, exptime)
 
       for s in Apogeeql.qlSources:
-         s.sendLine('UTR=%s,%d,%d,%d' % (newfilename, Apogeeql.actor.exp_pk, readnum, Apogeeql.numReadsCommanded))
+         s.sendLine('UTR=%s,%d,%d,%d' % (newfilename, Apogeeql.exp_pk, readnum, Apogeeql.numReadsCommanded))
 
    @staticmethod
    def exposureWroteSummaryCB(keyVar):
+
       '''callback routine for apogeeICC.exposureWroteSummary '''
       # exposureWroteFile apRaw-0054003-001.fits   -> mark first UTR read
       # exposureWroteFile apRaw-0054003-002.fits   -> mark first UTR read
@@ -372,45 +419,29 @@ class Apogeeql(actorcore.Actor.Actor):
 
       filename=keyVar[0]
       res=(filename.split('-'))[1].split('.')
+      dayOfSurvey = res[0][:4]
+      mjd = int(dayOfSurvey) + int(Apogeeql.startOfSurvey)
       indir=Apogeeql.actor.summary_dir
       outdir = Apogeeql.actor.cdr_dir
 
-      """
       try:
-         indir  = os.path.join(indir,res[0][:4])
+         indir  = os.path.join(indir,dayOfSurvey)
          infile= os.path.join(indir,filename)
-         mjd = int(res[0][:4])+int(self.startOfSurvey)
          outdir = os.path.join(outdir,str(mjd))
          outfile= os.path.join(outdir,filename)
          if not os.path.isdir(outdir):
             os.mkdir(outdir)
             print 'Directory created at: ' + dest
-
+         # t0=time.time()
          shutil.copy2(infile,outfile)
+         # print "shutil.copy2 took %f seconds" % (time.time()-t0)
       except:
          raise RuntimeError, ( "Failed to copy the summary file (%s)" % (filename)) 
-      """
-
-
-   @staticmethod
-   def calSourceStatusCB(keyVar):
-      '''callback routine for apogeeICC.exposureWroteSummary '''
-      # apogeecal : calSourceStatus=false,false,true; calShutter=closed; calBoxController=on
-      print "calSourceStatusCB=",keyVar
-      if not keyVar.isGenuine:
-         return
-
-      # do something with the lamp status
-      # print "newfilename=",newfilename
-      # for s in Apogeeql.qlSources:
-      #    s.sendLine('UTR=%s' % (newfilename))
 
 
    def connectQuickLook(self):
       '''open a socket through twisted to send/receive information to/from apogee_IDL'''
       # get the port from the configuratio file 
-      self.qlPort = self.config.getint('apogeeql', 'qlPort') 
-      self.qlHost = self.config.get('apogeeql', 'qlHost') 
       reactor.listenTCP(self.qlPort, QLFactory(self))
 
    def startQuickLook(self):
@@ -463,6 +494,62 @@ class Apogeeql(actorcore.Actor.Actor):
          self.logger.warn("Unable to kill existing apogeeql_IDL process %s" % self.ql_pid)
       else:
          self.ql_pid = 0
+
+   def connectQuickReduce(self):
+      '''open a socket through twisted to send/receive information to/from apqr_wrapper IDL'''
+      # get the port from the configuratio file 
+      reactor.listenTCP(self.qrPort, QRFactory(self))
+
+   def startQuickReduce(self):
+      '''Open a twisted reactor to communicate with IDL socket'''
+      #
+      # check if an apogeeql_IDL process is already running before starting a new one
+      if self.qr_pid > 0:
+         self.stopQuickReduce()
+
+      # spawn the apgreduce IDL process and don't wait for its completion
+      try:
+         # get the string corresponding to the command to start the IDL quicklook process
+         qrCommand = self.config.get('apogeeql','qrCommandName')
+         qrCommand = qrCommand.strip('"')
+         # this adds the arguments to the IDL command line
+         qrCommand += " -args %s %s" % (self.qrHost, self.qrPort)
+         # Popen does NOWAIT by default
+         qr_process = subprocess.Popen(qrCommand.split(), stderr=subprocess.STDOUT)
+         self.qr_pid = qr_process.pid
+      except:
+         self.logger.error("Failed to start the apogeeqr_IDL process")
+         traceback.print_exc()
+
+
+   def stopQuickReduce(self):
+      '''If a quickReduce IDL process already exists - just kill it (for now)'''
+      if self.qr_pid == 0:
+         p1=subprocess.Popen(['/bin/ps'],stdout=subprocess.PIPE)
+         # apqr_wrapper is the name of the program ran when starting IDL (in apogeeqr.cfg)
+         processName = (self.config.get('apogeeqr','qlCommandName')).split()
+         if '-e' in processName:
+            # look at the name of the program called when IDL is started
+            pos = processName[processName.index('-e')+1]
+         else:
+            pos = 0
+         args = ['grep',processName[pos]]
+         p2=subprocess.Popen(args,stdin=p1.stdout,stdout=subprocess.PIPE)
+         output=p2.communicate()[0]
+         p2.kill()
+         p1.kill()
+         if len(output) > 0:
+            # process exists -> kill it
+            self.qr_pid = output.split()[0]
+
+      os.kill(self.ql_pid,signal.SIGKILL)
+      killedpid, stat = os.waitpid(self.qr_pid, os.WNOHANG)
+      if killedpid == 0:
+         # failed in killing old IDL process
+         # print error message here
+         self.logger.warn("Unable to kill existing apogeeql_IDL process %s" % self.qr_pid)
+      else:
+         self.qr_pid = 0
 
    def periodicStatus(self):
       '''Run some command periodically'''
@@ -554,8 +641,6 @@ class Apogeeql(actorcore.Actor.Actor):
       cards.extend(actorFits.tccCards(self.models, cmd=self.bcast))
       cards.extend(actorFits.plateCards(self.models, cmd=self.bcast))
 
-
-
       for name, val, comment in cards:
           try:
               hdulist[0].header.update(name, val, comment)
@@ -570,36 +655,27 @@ class Apogeeql(actorcore.Actor.Actor):
 
        from sqlalchemy import and_
 
-       plugging = session.query(Plugging).join(ActivePlugging).join(Cartridge).\
-                    order_by(Cartridge.number).all()
+       # get the latest entry in the pl_plugmap_m for this plate
+       pm = session.query(PlPlugMapM).join(Plugging).join(Plate).\
+            filter(and_( Plate.plate_id==plateId,
+                        PlPlugMapM.fscan_id == Plugging.fscan_id,
+                        PlPlugMapM.fscan_mjd == Plugging.fscan_mjd,
+                        PlPlugMapM.plugging_pk == Plugging.pk)).\
+            order_by(Plugging.fscan_mjd.desc()).order_by(Plugging.fscan_id.desc())
 
-       plugging = [p for p in plugging if p.cartridge.number == cartridgeId]
-
-       """
-       if len(plugging) == 0:
-            raise RuntimeError, ( "No plugging found with cartridgeId = %d" % (cartridgeId)) 
-       elif len(plugging) != 1:
-            raise RuntimeError, ( "More than one found with cartridgeId = %d" % (cartridgeId)) 
-       else:
-          plugging=plugging[0]
-       """
-
-       # just for tonight's tests
-       plugging=plugging[0]
-       pm = session.query(PlPlugMapM).join(Plugging).\
-            filter(and_(PlPlugMapM.fscan_id == plugging.fscan_id,
-                        PlPlugMapM.fscan_mjd == plugging.fscan_mjd,
-                        PlPlugMapM.plugging == plugging))
-
-       if pm.count() != 1:
+       if pm.count() == 0:
+            raise RuntimeError, ("NO plugmap from for plate %d" % (plateId))
+       elif pm.count() != 1:
            if pointingName:
                pm = [p for p in pm if p.pointing_name == pointingName]
 
-           if len(pm) != 1:
-               # Look for the correct pointing
-               raise RuntimeError, (
-                   "Found more than one plugging/plPlugMapM pairing with fscan_mjd, fscan_id = %s, %d; %s" % (
-                   plugging.fscan_mjd, plugging.fscan_id, [p.pointing_name for p in pm]))
+           # if more than one match -> grab the last one scanned
+           #if len(pm) != 1:
+              # Look for the correct pointing
+              #raise RuntimeError, (
+              #    "Found more than one plugging/plPlugMapM pairing with plate = %d; %s; %s; %s; %s" % 
+              #    (plateId, [p.pointing_name for p in pm], [p.filename for p in pm],
+              #     [p.fscan_id for p in pm], [p.fscan_mjd for p in pm]))
 
        return pm[0]
 
@@ -738,6 +814,8 @@ def main():
    apogeeql = Apogeeql('apogeeql', 'apogeeql')
    apogeeql.connectQuickLook()
    apogeeql.startQuickLook()
+   apogeeql.connectQuickReduce()
+   apogeeql.startQuickReduce()
    apogeeql.run()
 
 #-------------------------------------------------------------
