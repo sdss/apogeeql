@@ -9,7 +9,7 @@ if test -z "$PROD_DIR"; then
     echo "Product $PRODNAME is not setup"
     exit 1
 fi
-export LOG_DIR=$HOME/logs
+export LOG_DIR=$HOME/logs/$PRODNAME
 
 echo
 echo ====================== Using $PRODNAME from $PROD_DIR
