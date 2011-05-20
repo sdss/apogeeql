@@ -1,0 +1,143 @@
+#!/bin/bash
+
+PRODNAME=apogeeql
+
+PRODNAME_UC=$(echo $PRODNAME | tr a-z A-Z)
+PROD_DIR=$(eval echo \$${PRODNAME_UC}_DIR)
+
+if test -z "$PROD_DIR"; then
+    echo "Product $PRODNAME is not setup"
+    exit 1
+fi
+export LOG_DIR=$HOME/logs
+
+echo
+echo ====================== Using $PRODNAME from $PROD_DIR
+echo
+
+usage() {
+    echo "usage: $0 start|stop|restart|status" >&2
+    exit 1
+}
+
+if test $# != 1; then
+    usage
+fi
+cmd=$1
+
+cd $PROD_DIR
+
+now() {
+    NOW=$(TZ=GMT date +"%Y-%m-%dT%H:%M:%S")
+
+    echo $NOW
+}
+
+# Return the program's pid, or the empty string.
+#
+get_pid() {
+    PID=""
+    pid=$(/bin/ps -e -ww -o pid,user,command | egrep -v 'awk|grep' | grep "python ${PRODNAME}_main.py" | awk '{print $1}')
+    PID=$pid
+
+    if test "$pid"; then
+        echo "$PRODNAME is running as process $pid"
+    else
+        echo "$PRODNAME is not running"
+    fi
+}
+
+# Start a new ICC. Complains if the ICC is already running,
+# and does not start a new one.
+#
+do_start() {
+    get_pid
+
+    if test "$PID"; then
+        echo "NOT starting new $PRODNAME. Use restart if you want a new one."
+        return
+    fi
+
+    echo "Starting new $PRODNAME...\c"
+
+    now=`now`.log
+    (cd $LOG_DIR; rm -f current.log; ln -s $now current.log)
+    cd $PROD_DIR/python/$PRODNAME
+    python ${PRODNAME}_main.py >$LOG_DIR/$now 2>&1 &
+
+    # Check that it really started...
+    #
+    sleep 1
+    get_pid
+
+    if test "$PID"; then
+        echo " done."
+    else
+        echo " FAILED!"
+    fi
+}
+
+# Stop any running ICC.
+#
+do_stop() {
+    get_pid
+
+    if test ! "$PID"; then
+        return
+    fi
+
+    echo "Stopping $PRODNAME."
+    kill -TERM $PID
+}
+
+# Stop any running ICC fairly violently.
+#
+do_stopdead() {
+    get_pid
+
+    if test ! "$PID"; then
+        return
+    fi
+
+    echo "Stopping $PRODNAME gently."
+    kill -TERM $PID
+    sleep 2
+
+    echo "Stopping $PRODNAME meanly."
+    kill -KILL $PID
+}
+
+# Query a running ICC for simple status.
+#
+do_status() {
+    get_pid
+}
+
+case $cmd in
+    start)
+        do_start
+        ;;
+    stop)
+        do_stop
+        ;;
+    stopdead)
+        do_stopdead
+        ;;
+    status)
+        # Check whether the ICC is running
+        get_pid
+
+        # Query it for essential liveness
+        ;;
+    restart)
+        do_stop
+        sleep 2
+        do_start
+        ;;
+    *)
+        usage
+        ;;
+esac
+
+exit 0
+

@@ -1,4 +1,5 @@
 * text=auto !eol
+bin/apogeeql -text
 etc/apogeeql.cfg -text
 python/apogeeql/Commands/__init__.py -text
 python/apogeeql/Commands/apogeeqlCmd.py -text
