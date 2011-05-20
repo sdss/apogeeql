@@ -643,7 +643,10 @@ class Apogeeql(actorcore.Actor.Actor):
 
       # guider i seeing=2.09945
       seeing = Apogeeql.actor.models['guider'].keyVarDict['seeing'][0]
-      hdulist[0].header.update('SEEING',seeing, 'RMS seeing from guide fibers')
+      if str(seeing).isdigit():
+          hdulist[0].header.update('SEEING',seeing, 'RMS seeing from guide fibers')
+      else:
+          hdulist[0].header.update('SEEING',0.0, 'RMS seeing from guide fibers')
 
 
       # starttime is MJD in seconds
