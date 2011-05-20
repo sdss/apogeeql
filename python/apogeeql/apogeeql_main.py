@@ -7,10 +7,9 @@ from twisted.internet.protocol import Protocol, Factory
 
 # the APOTestDatabaseconnection will make version v1_0_6 of platedb
 # work (with the new hooloovookit stuff) - requires version v1_0_6 of later
-from platedb.APOTestDatabaseConnection import db
-#from platedb.APODatabaseConnection import db
+# from platedb.APOTestDatabaseConnection import db
+from platedb.APODatabaseConnection import db
 from platedb.ModelClasses import *
-import platedb.plPlugMapM as plPlugMapM
 from catalogdb.ModelClasses import *
 
 import opscore.actor.model
@@ -49,21 +48,22 @@ class QuickLookLineServer(LineReceiver):
            for s in self.factory.qlActor.qlSources:
               s.sendLine('PING')
               s.sendLine('STARTING')
-              # repeat the latest plugmap info if we got the message
-              # before the apql_wrapper was listening (happens every time we start)
-              if self.factory.qlActor.prevPlate != -1:
-                 s.sendLine('plugMapInfo=%s,%s,%s,%s' % (self.factory.qlActor.prevPlate, \
-                       self.factory.qlActor.prevScanMJD, self.factory.qlActor.prevScanId, \
-                       self.factory.qlActor.plugFname))
-
 
     def lineReceived(self, line):
         if line.upper()=='PONG':
             # normal response from aliveness test
             self.factory.qlActor.watchDogStatus = True
-        if line=='quit':
+        elif line.upper()=='QUIT':
             # request to disconnect
             self.transport.loseConnection()
+        elif line.upper()=='STARTED':
+            # we got the initial response from the apql_wrapper
+            # send the PointingInfo stuff
+            if self.factory.qlActor.prevPlate != -1:
+               for s in self.factory.qlActor.qlSources:
+                  s.sendLine('plugMapInfo=%s,%s,%s,%s' % (self.factory.qlActor.prevPlate, \
+                       self.factory.qlActor.prevScanMJD, self.factory.qlActor.prevScanId, \
+                       self.factory.qlActor.plugFname))
         elif line == "callback":
             logging.info("preparing callback")
             reactor.callLater(5.0,self.sendcomment)
@@ -96,7 +96,7 @@ class QuickRedLineServer(LineReceiver):
         self.delimiter = '\n'
         self.peer = self.transport.getPeer()
         self.factory.qrActor.qrSources.append(self)
-        print "Connection from ", self.peer.host, self.peer.port
+        print "apqr_wrapper -> Connection from ", self.peer.host, self.peer.port
         # ping the quicklook
         if self.factory.qrActor.ql_pid > 0:
            for s in self.factory.qrActor.qrSources:
@@ -110,12 +110,20 @@ class QuickRedLineServer(LineReceiver):
         if line=='quit':
             # request to disconnect
             self.transport.loseConnection()
+        elif line.upper()=='STARTED':
+            # we got the initial response from the apql_wrapper
+            # send the PointingInfo stuff
+            if self.factory.qrActor.prevPlate != -1:
+               for s in self.factory.qrActor.qrSources:
+                  s.sendLine('plugMapInfo=%s,%s,%s,%s' % (self.factory.qrActor.prevPlate, \
+                       self.factory.qrActor.prevScanMJD, self.factory.qrActor.prevScanId, \
+                       self.factory.qrActor.plugFname))
         elif line == "callback":
             logging.info("preparing callback")
             reactor.callLater(5.0,self.sendcomment)
         else:
             # assume the messages are properly formatted to pass along
-            print 'Received from apqr_wrapper.pro: ',line
+            # print 'Received from apqr_wrapper.pro: ',line
             self.factory.qrActor.bcast.finish(line)
 
     def connectionLost(self, reason):
@@ -156,13 +164,11 @@ class Apogeeql(actorcore.Actor.Actor):
    expType=''
    numReadsCommanded=0
    actor=''
-   Session = ''
    startOfSurvey=55562
    obs_pk = 0
    exp_pk = 0
    cdr_dir = ''
    summary_dir = ''
-   mysession=''
    frameid = ''
 
    # setup the variables for the watchdog to the IDL code
@@ -206,69 +212,71 @@ class Apogeeql(actorcore.Actor.Actor):
       #
       self.models = {}
       # for actor in ["mcp", "guider", "platedb", "tcc", "apo", "apogeetest"]:
-      for actor in ["mcp", "guider", "platedb", "tcc", "apogeetest", "apogeecal"]:
+      for actor in ["mcp", "guider", "platedb", "tcc", "apogee", "apogeecal"]:
          self.models[actor] = opscore.actor.model.Model(actor)
 
       #
       # register the keywords that we want to pay attention to
       #
       self.models["tcc"].keyVarDict["inst"].addCallback(self.TCCInstCB, callNow=False)
-      self.models["platedb"].keyVarDict["pointingInfo"].addCallback(self.PointingInfoCB, callNow=False)
-      #self.models["apogee"].keyVarDict["exposureState"].addCallback(self.ExposureStateCB, callNow=False)
-      #self.models["apogee"].keyVarDict["exposureWroteFile"].addCallback(self.exposureWroteFileCB, callNow=False)
-      #self.models["apogee"].keyVarDict["exposureWroteSummary"].addCallback(self.exposureWroteSummaryCB, callNow=False)
-      self.models["apogeetest"].keyVarDict["exposureState"].addCallback(self.ExposureStateCB, callNow=False)
-      self.models["apogeetest"].keyVarDict["exposureWroteFile"].addCallback(self.exposureWroteFileCB, callNow=False)
-      self.models["apogeetest"].keyVarDict["exposureWroteSummary"].addCallback(self.exposureWroteSummaryCB, callNow=False)
+      self.models["platedb"].keyVarDict["pointingInfo"].addCallback(self.PointingInfoCB, callNow=True)
+      self.models["apogee"].keyVarDict["exposureState"].addCallback(self.ExposureStateCB, callNow=False)
+      self.models["apogee"].keyVarDict["exposureWroteFile"].addCallback(self.exposureWroteFileCB, callNow=False)
+      self.models["apogee"].keyVarDict["exposureWroteSummary"].addCallback(self.exposureWroteSummaryCB, callNow=False)
+      #self.models["apogeetest"].keyVarDict["exposureState"].addCallback(self.ExposureStateCB, callNow=False)
+      #self.models["apogeetest"].keyVarDict["exposureWroteFile"].addCallback(self.exposureWroteFileCB, callNow=False)
+      #self.models["apogeetest"].keyVarDict["exposureWroteSummary"].addCallback(self.exposureWroteSummaryCB, callNow=False)
 
       #
       # Connect to the platedb
       #
-      self.Session = Session
-      self.mysession = self.Session()
+      self.mysession = db.Session()
+      # self.mysession.begin()
 
 
    @staticmethod
    def TCCInstCB(keyVar):
       '''callback routine for tcc.inst'''
 
-      print 'TCCInstCB keyVar=',keyVar
+      # print 'TCCInstCB keyVar=',keyVar
       Apogeeql.inst = keyVar[0]
 
    @staticmethod
    def PointingInfoCB(keyVar):
       '''callback routine for platedb.pointingInfo'''
       # plate_id, cartridge_id, pointing_id, boresight_ra, boresight_dec, hour_angle, temperature, wavelength
-      print "PointingInfoCB=",keyVar
+      # print "PointingInfoCB=",keyVar
 
       # if pointing is None than just skip this
       if keyVar[1] == None:
          return
 
-      plate = keyVar[0]
-      cartridge = keyVar[1]
-      pointing = keyVar[2]
-      """
-      """
+      plate = int(keyVar[0])
+      cartridge = int(keyVar[1])
+      pointing = str(keyVar[2])
 
       """
       MODIFIED TO TESTING QUICKLOOK ON TEST DATABASE WITH SIMULATED DATA AND FAKE ICS
-      """
 
       cartridge = 3
       plate = 4918
       pointing = 'A'
-      """
+
       cartridge = 1
       plate = 4929
       pointing = 'A'
       """
-
-      # we need to ignore all plates that are not for APOGEE or MARVELS
-
-      print Apogeeql.actor.models['platedb'].keyVarDict['activePlugging']
+ 
+      # print Apogeeql.actor.models['platedb'].keyVarDict['activePlugging']
 
       if plate != Apogeeql.prevPlate or cartridge != Apogeeql.prevCartridge or pointing != Apogeeql.prevPointing:
+         # we need to ignore all plates that are not for APOGEE or MARVELS
+         survey=Apogeeql.actor.mysession.query(Survey).join(PlateToSurvey).join(Plate).filter(Plate.plate_id==plate)
+         if survey.count() > 0:
+              if survey[0].label.upper().find("APOGEE") == -1 and survey[0].label.upper().find("MARVELS") == -1:
+                  # not an apogee or marvels plate - just skip
+                  return
+
          # we need to extract and pass a new plugmap to IDL QuickLook
          pm = Apogeeql.actor.getPlPlugMapM(Apogeeql.actor.mysession, cartridge, plate, pointing)
 
@@ -278,12 +286,14 @@ class Apogeeql(actorcore.Actor.Actor):
          p = fname.find('MapM')
          fname  = os.path.join(Apogeeql.actor.plugmap_dir,fname[0:p+3]+'A'+fname[p+4:])
 
-         print 'fname=',fname
+         # print 'fname=',fname
          Apogeeql.actor.makeApogeePlugMap(pm, fname)
 
          # pass the info to IDL QL
-         for s in Apogeeql.qlSources:
-            s.sendLine('plugMapInfo=%s,%s,%s,%s' % (plate, pm.fscan_mjd, pm.fscan_id, fname))
+         for s in Apogeeql.actor.qlSources:
+             s.sendLine('plugMapInfo=%s,%s,%s,%s' % (plate, pm.fscan_mjd, pm.fscan_id, fname))
+         for s in Apogeeql.actor.qrSources:
+             s.sendLine('plugMapInfo=%s,%s,%s,%s' % (plate, pm.fscan_mjd, pm.fscan_id, fname))
 
          # print 'plugMapFilename=%s' % (fname)
          Apogeeql.prevPointing = pointing
@@ -294,10 +304,10 @@ class Apogeeql(actorcore.Actor.Actor):
          # the plugging_pk is needed to find the right observation_pk
          Apogeeql.pluggingPk = pm.plugging_pk
          Apogeeql.plugFname = fname
-         # find the platedb.survey.pk corresponding to APOGEE
+         # find the plateIddb.survey.pk corresponding to APOGEE
          survey=Apogeeql.actor.mysession.query(Survey).filter(Survey.label=='APOGEE')
          if survey.count() > 0:
-            Apogeeql.apogeeSurveyPk = survey[0].pk
+             Apogeeql.actor.apogeeSurveyPk = survey[0].pk
 
 
    @staticmethod
@@ -317,7 +327,7 @@ class Apogeeql(actorcore.Actor.Actor):
       # exposureWroteSummary apRaw-0054003.fits              -> mark first UTR read
       # exposureState DONE SCIENCE 50 apRaw-0054003          -> mark end of exposure
       # test existance of passed variable
-      print 'ExposureStateCB keyVar=',keyVar
+      # print 'ExposureStateCB keyVar=',keyVar
       if not keyVar.isGenuine:
          return
 
@@ -349,7 +359,6 @@ class Apogeeql(actorcore.Actor.Actor):
       else:
          Apogeeql.startExp = False
 
-      # print "Apogeeql.expType = ",Apogeeql.expType
 
    @staticmethod
    def exposureWroteFileCB(keyVar):
@@ -365,7 +374,7 @@ class Apogeeql(actorcore.Actor.Actor):
 
       # if we're not actually exposing than skip (we get these messages from the hub when
       # starting the apogeeql if apogee ics is already started)
-      print "exposureWroteFileCB=",keyVar
+      # print "exposureWroteFileCB=",keyVar
       if not keyVar.isGenuine:
          return
 
@@ -384,19 +393,19 @@ class Apogeeql(actorcore.Actor.Actor):
       res=filename.split('-')
       try:
          mjd = int(res[1][:4]) + Apogeeql.startOfSurvey
-         # readnum=int(res[2].split('.')[0])
-         readnum=int(res[1])
+         readnum=int(res[2].split('.')[0])
+         expnum=int(res[1])
       except:
          raise RuntimeError, ( "The filename doesn't match expected format (%s)" % (filename)) 
 
       if readnum == 1:
          # get the corresponding platedb.observation.pk (creating a new one if necessary)
-         Apogeeql.obs_pk = Apogeeql.getObservationPk(Apogeeql.actor, Apogeeql.actor.mysession, \
-               Apogeeql.prevCartridge, Apogeeql.prevPlate, Apogeeql.prevPointing, Apogeeql.pluggingPk, mjd)
+         survey = Apogeeql.actor.mysession.query(Survey).join(PlateToSurvey).join(Plate).filter(Plate.plate_id==Apogeeql.prevPlate)
+
+         Apogeeql.obs_pk = Apogeeql.actor.getObservationPk(mjd)
 
          # insert a new entry in the platedb.exposure table (one per UTR exposure)
-         Apogeeql.exp_pk = Apogeeql.getExposurePk(Apogeeql.actor, Apogeeql.actor.mysession, Apogeeql.actor.obs_pk, \
-               readnum, starttime, exptime)
+         Apogeeql.exp_pk = Apogeeql.actor.getExposurePk(Apogeeql.obs_pk, expnum, starttime, exptime)
 
       for s in Apogeeql.qlSources:
          s.sendLine('UTR=%s,%d,%d,%d' % (newfilename, Apogeeql.exp_pk, readnum, Apogeeql.numReadsCommanded))
@@ -413,7 +422,7 @@ class Apogeeql(actorcore.Actor.Actor):
       # exposureWroteSummary apRaw-0054003.fits    -> mark first CDS read
       # exposureState DONE SCIENCE 50 apRaw-0054003          -> mark end of exposure
       # test existance of passed variable
-      print "exposureWroteSummaryCB=",keyVar
+      # print "exposureWroteSummaryCB=",keyVar
       if not keyVar.isGenuine:
          return
 
@@ -431,7 +440,7 @@ class Apogeeql(actorcore.Actor.Actor):
          outfile= os.path.join(outdir,filename)
          if not os.path.isdir(outdir):
             os.mkdir(outdir)
-            print 'Directory created at: ' + dest
+            # print 'Directory created at: ' + dest
          # t0=time.time()
          shutil.copy2(infile,outfile)
          # print "shutil.copy2 took %f seconds" % (time.time()-t0)
@@ -632,6 +641,11 @@ class Apogeeql(actorcore.Actor.Actor):
       hdulist[0].header.update('LAMPSHTR',lampshtr, 'CalBox Shutter Lamp Status')
       hdulist[0].header.update('LAMPCNTL',lampcntl, 'CalBox Controller Status')
 
+      # guider i seeing=2.09945
+      seeing = Apogeeql.actor.models['guider'].keyVarDict['seeing'][0]
+      hdulist[0].header.update('SEEING',seeing, 'RMS seeing from guide fibers')
+
+
       # starttime is MJD in seconds
       starttime = mjd*24.0*3600.0
       exptime = hdulist[0].header['exptime']
@@ -650,34 +664,21 @@ class Apogeeql(actorcore.Actor.Actor):
       hdulist.writeto(outFile, clobber=True)
       return outFile, starttime, exptime
 
+
    def getPlPlugMapM(self, session, cartridgeId, plateId, pointingName):
        """Return the plPlugMapM given a plateId and pointingName"""
 
-       from sqlalchemy import and_
+       try:
+           pm = session.query(PlPlugMapM).join(Plugging,Plate,Cartridge,ActivePlugging).\
+                   filter(Plate.plate_id==plateId).\
+                   filter(Cartridge.number==cartridgeId).\
+                   filter(PlPlugMapM.pointing_name==pointingName).one()
+       except sqlalchemy.orm.exc.NoResultFound:
+           raise RuntimeError, ("NO plugmap from for plate %d" % (plateId))
+       except sqlalchemy.orm.exc.MultipleResultsFound:
+           raise RuntimeError, ("More than one plugmap from for plate %d" % (plateId))
 
-       # get the latest entry in the pl_plugmap_m for this plate
-       pm = session.query(PlPlugMapM).join(Plugging).join(Plate).\
-            filter(and_( Plate.plate_id==plateId,
-                        PlPlugMapM.fscan_id == Plugging.fscan_id,
-                        PlPlugMapM.fscan_mjd == Plugging.fscan_mjd,
-                        PlPlugMapM.plugging_pk == Plugging.pk)).\
-            order_by(Plugging.fscan_mjd.desc()).order_by(Plugging.fscan_id.desc())
-
-       if pm.count() == 0:
-            raise RuntimeError, ("NO plugmap from for plate %d" % (plateId))
-       elif pm.count() != 1:
-           if pointingName:
-               pm = [p for p in pm if p.pointing_name == pointingName]
-
-           # if more than one match -> grab the last one scanned
-           #if len(pm) != 1:
-              # Look for the correct pointing
-              #raise RuntimeError, (
-              #    "Found more than one plugging/plPlugMapM pairing with plate = %d; %s; %s; %s; %s" % 
-              #    (plateId, [p.pointing_name for p in pm], [p.filename for p in pm],
-              #     [p.fscan_id for p in pm], [p.fscan_mjd for p in pm]))
-
-       return pm[0]
+       return pm
 
    def makeApogeePlugMap(self, plugmap, newfilename):
        """Return the plPlugMapM given a plateId and pointingName"""
@@ -744,55 +745,71 @@ class Apogeeql(actorcore.Actor.Actor):
        return 
 
 
-   def getObservationPk(self, session, cratridge, plate, pointing, plugging_pk, mjd):
+   def getObservationPk(self, mjd):
        """Insert a new row in the platedb.observation table if needed"""
 
-       # get the plate_pointing_pk from the database
-       platePointing=session.query(PlatePointing).filter(PlatePointing.pointing_name==pointing).\
-             join(Plate).filter(Plate.plate_id==plate)
-       if platePointing.count() != 1:
-           # found more than one entry for the plate_pointing
-           raise RuntimeError, (\
-                 "Found more than one platedb.plate_pointing for plate %d and pointing %s" % \
-                 (plate, pointing))
-       # see if a matching entry in the observation table exists
-       platePointing = platePointing[0]
-       observation=session.query(Observation).filter(Observation.plate_pointing_pk==platePointing.pk).\
-             filter(Observation.plugging_pk==plugging_pk).filter(Observation.mjd==mjd)
-       if observation.count() == 0:
-          # no observation entry found -> create one (start a new observation)
-          new_obs=Observation()
-          new_obs.mjd=mjd
-          new_obs.plate_pointing_pk = platePointing.pk
-          new_obs.plugging_pk = plugging_pk
-          new_obs.comment = "apogeeQL"
-          session.add(new_obs)
-          session.commit()
-          return new_obs.pk
-       elif observation.count() == 1:
-          # return the primary of the entry in the platedb.observation table
-          return observation[0].pk
-       else: 
-          # we found more than one entry
-           raise RuntimeError, ("Found more than one entry in the observation table")
+       # make sure the currently loaded plate is from APOGEE/MARVELS
+       survey = self.mysession.query(Survey).join(PlateToSurvey).join(Plate).filter(Plate.plate_id==self.prevPlate)
 
-       return -1
+       if survey.count() >= 1:
+          if (survey[0].label).upper().find('APOGEE') >= 0 or (survey[0].label).upper().find('MARVELS') >= 0:
+             # a MARVELS / APOGEE plate
+             # get the plate_pointing_pk from the database
+             platePointing=self.mysession.query(PlatePointing).filter(PlatePointing.pointing_name==self.prevPointing).\
+                   join(Plate).filter(Plate.plate_id==self.prevPlate)
+             if platePointing.count() != 1:
+                 # found more than one entry for the plate_pointing
+                 raise RuntimeError, (\
+                       "Found more than one platedb.plate_pointing for plate %d and pointing %s" % \
+                       (plate, pointing))
+             # see if a matching entry in the observation table exists
+             platePointing = platePointing[0]
+             observation=self.mysession.query(Observation).filter(Observation.plate_pointing_pk==platePointing.pk).\
+                   filter(Observation.plugging_pk==self.pluggingPk).filter(Observation.mjd==mjd)
+             if observation.count() == 0:
+                # no observation entry found -> create one (start a new observation)
+                self.mysession.begin()
+                new_obs=Observation()
+                new_obs.mjd=mjd
+                new_obs.plate_pointing_pk = platePointing.pk
+                new_obs.plugging_pk = self.pluggingPk
+                new_obs.comment = "apogeeQL"
+                self.mysession.add(new_obs)
+                self.mysession.commit()
+                return new_obs.pk
+             elif observation.count() == 1:
+                # return the primary of the entry in the platedb.observation table
+                return observation[0].pk
+             else: 
+                # we found more than one entry
+                 raise RuntimeError, ("Found more than one entry in the observation table")
 
-   def getExposurePk(self, session, obs_pk, expnum, starttime, exptime):
+       # create a new entry in the observation tabel without an associated plugging
+       self.mysession.begin()
+       new_obs=Observation()
+       new_obs.mjd=mjd
+       new_obs.comment = "apogeeQL: no associated plate"
+       self.mysession.add(new_obs)
+       self.mysession.commit()
+       return new_obs.pk
+
+   def getExposurePk(self, obs_pk, readnum, starttime, exptime):
        """Insert a new row in the platedb.exposure table """
 
+       self.mysession.begin()
        new_exp = Exposure()
        new_exp.observation_pk = obs_pk
-       new_exp.exposure_no = expnum
+       new_exp.exposure_no = readnum
+       new_exp.survey_pk = self.apogeeSurveyPk
        new_exp.start_time = starttime
        new_exp.exposure_time = exptime
-       new_exp.survey_pk = self.apogeeSurveyPk
+       new_exp.comment = "apogeeQL"
        # get the corresponding exposure_flavor_pk from the expType
-       expType = session.query(ExposureFlavor).filter(ExposureFlavor.label.match(self.expType))
+       expType = self.mysession.query(ExposureFlavor).filter(ExposureFlavor.label.match(self.expType))
        if expType.count() >= 1:
           new_exp.exposure_flavor_pk = expType[0].pk
-       session.add(new_exp)
-       session.commit()
+       self.mysession.add(new_exp)
+       self.mysession.commit()
        return new_exp.pk
 
    def getCalibBoxStatus(self):
