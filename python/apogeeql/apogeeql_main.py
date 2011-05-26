@@ -269,6 +269,11 @@ class Apogeeql(actorcore.Actor.Actor):
  
       # print Apogeeql.actor.models['platedb'].keyVarDict['activePlugging']
 
+      # find the plateIddb.survey.pk corresponding to APOGEE
+      survey=Apogeeql.actor.mysession.query(Survey).filter(Survey.label=='APOGEE')
+      if survey.count() > 0:
+         Apogeeql.actor.apogeeSurveyPk = survey[0].pk
+
       if plate != Apogeeql.prevPlate or cartridge != Apogeeql.prevCartridge or pointing != Apogeeql.prevPointing:
          # we need to ignore all plates that are not for APOGEE or MARVELS
          survey=Apogeeql.actor.mysession.query(Survey).join(PlateToSurvey).join(Plate).filter(Plate.plate_id==plate)
@@ -304,10 +309,6 @@ class Apogeeql(actorcore.Actor.Actor):
          # the plugging_pk is needed to find the right observation_pk
          Apogeeql.pluggingPk = pm.plugging_pk
          Apogeeql.plugFname = fname
-         # find the plateIddb.survey.pk corresponding to APOGEE
-         survey=Apogeeql.actor.mysession.query(Survey).filter(Survey.label=='APOGEE')
-         if survey.count() > 0:
-             Apogeeql.actor.apogeeSurveyPk = survey[0].pk
 
 
    @staticmethod
@@ -406,6 +407,9 @@ class Apogeeql(actorcore.Actor.Actor):
 
          # insert a new entry in the platedb.exposure table (one per UTR exposure)
          Apogeeql.exp_pk = Apogeeql.actor.getExposurePk(Apogeeql.obs_pk, expnum, starttime, exptime)
+
+         # print 'Apogeeql.obs_pk=',Apogeeql.obs_pk
+         # print 'Apogeeql.exp_pk=',Apogeeql.exp_pk
 
       for s in Apogeeql.qlSources:
          s.sendLine('UTR=%s,%d,%d,%d' % (newfilename, Apogeeql.exp_pk, readnum, Apogeeql.numReadsCommanded))
