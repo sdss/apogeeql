@@ -31,6 +31,7 @@ import os, signal, subprocess, tempfile, shutil
 import time
 import types
 import yanny
+# import numpy
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
@@ -42,6 +43,7 @@ class QuickLookLineServer(LineReceiver):
         self.delimiter = '\n'
         self.peer = self.transport.getPeer()
         self.factory.qlActor.qlSources.append(self)
+        logging.info("Connection from %s %s" % (self.peer.host, self.peer.port))
         print "Connection from ", self.peer.host, self.peer.port
         # ping the quicklook
         if self.factory.qlActor.ql_pid > 0:
@@ -96,6 +98,7 @@ class QuickRedLineServer(LineReceiver):
         self.delimiter = '\n'
         self.peer = self.transport.getPeer()
         self.factory.qrActor.qrSources.append(self)
+        logging.info("apqr_wrapper Connection from %s %s" % (self.peer.host, self.peer.port))
         print "apqr_wrapper -> Connection from ", self.peer.host, self.peer.port
         # ping the quicklook
         if self.factory.qrActor.ql_pid > 0:
@@ -223,15 +226,11 @@ class Apogeeql(actorcore.Actor.Actor):
       self.models["apogee"].keyVarDict["exposureState"].addCallback(self.ExposureStateCB, callNow=False)
       self.models["apogee"].keyVarDict["exposureWroteFile"].addCallback(self.exposureWroteFileCB, callNow=False)
       self.models["apogee"].keyVarDict["exposureWroteSummary"].addCallback(self.exposureWroteSummaryCB, callNow=False)
-      #self.models["apogeetest"].keyVarDict["exposureState"].addCallback(self.ExposureStateCB, callNow=False)
-      #self.models["apogeetest"].keyVarDict["exposureWroteFile"].addCallback(self.exposureWroteFileCB, callNow=False)
-      #self.models["apogeetest"].keyVarDict["exposureWroteSummary"].addCallback(self.exposureWroteSummaryCB, callNow=False)
 
       #
       # Connect to the platedb
       #
       self.mysession = db.Session()
-      # self.mysession.begin()
 
 
    @staticmethod
@@ -645,13 +644,23 @@ class Apogeeql(actorcore.Actor.Actor):
       hdulist[0].header.update('LAMPSHTR',lampshtr, 'CalBox Shutter Lamp Status')
       hdulist[0].header.update('LAMPCNTL',lampcntl, 'CalBox Controller Status')
 
+      """
+      # guider i refractionCorrection=1.00000
+      refraction = Apogeeql.actor.models['guider'].keyVarDict['refractionCorrection'][0]
+      refraction = numpy.nan_to_num(refraction)
+      hdulist[0].header.update('REFRACOR',refraction, 'guider refractionCorrection')
+      """
+
       # guider i seeing=2.09945
       seeing = Apogeeql.actor.models['guider'].keyVarDict['seeing'][0]
-      if str(seeing).isdigit():
-          hdulist[0].header.update('SEEING',seeing, 'RMS seeing from guide fibers')
-      else:
-          hdulist[0].header.update('SEEING',0.0, 'RMS seeing from guide fibers')
-
+      hdulist[0].header.update('SEEING',seeing, 'RMS seeing from guide fibers')
+      try:
+          seeing=float(seeing)
+          if seeing == float('NaN'):
+              seeing=0.0
+      except ValueError:
+          seeing=0.0
+      hdulist[0].header.update('SEEING',seeing, 'RMS seeing from guide fibers')
 
       # starttime is MJD in seconds
       starttime = mjd*24.0*3600.0
