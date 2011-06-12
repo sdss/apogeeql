@@ -688,11 +688,19 @@ class Apogeeql(actorcore.Actor.Actor):
            pm = session.query(PlPlugMapM).join(Plugging,Plate,Cartridge,ActivePlugging).\
                    filter(Plate.plate_id==plateId).\
                    filter(Cartridge.number==cartridgeId).\
-                   filter(PlPlugMapM.pointing_name==pointingName).one()
+                   filter(PlPlugMapM.pointing_name==pointingName).order_by(PlPlugmapM.fscan_mjd.desc()).\
+                   order_by(PlPlugMapM.fscan_id.desc()).one()
        except sqlalchemy.orm.exc.NoResultFound:
            raise RuntimeError, ("NO plugmap from for plate %d" % (plateId))
        except sqlalchemy.orm.exc.MultipleResultsFound:
-           raise RuntimeError, ("More than one plugmap from for plate %d" % (plateId))
+           # raise RuntimeError, ("More than one plugmap from for plate %d" % (plateId))
+           # use thae last entry hoping all is well
+           pm = session.query(PlPlugMapM).join(Plugging,Plate,Cartridge,ActivePlugging).\
+                   filter(Plate.plate_id==plateId).\
+                   filter(Cartridge.number==cartridgeId).\
+                   filter(PlPlugMapM.pointing_name==pointingName).order_by(PlPlugmapM.fscan_mjd.desc()).\
+                   order_by(PlPlugMapM.fscan_id.desc())
+           pm=pm[0]
 
        return pm
 
