@@ -595,7 +595,7 @@ class Apogeeql(actorcore.Actor.Actor):
       #
       # Schedule an update.
       #
-      reactor.callLater(3, self.periodicStatus)
+      # reactor.callLater(3, self.periodicStatus)
 
    def appendFitsKeywords(self, filename):
       '''make a copy of the input FITS file with added keywords'''
@@ -698,7 +698,7 @@ class Apogeeql(actorcore.Actor.Actor):
            pm = session.query(PlPlugMapM).join(Plugging,Plate,Cartridge,ActivePlugging).\
                    filter(Plate.plate_id==plateId).\
                    filter(Cartridge.number==cartridgeId).\
-                   filter(PlPlugMapM.pointing_name==pointingName).order_by(PlPlugmapM.fscan_mjd.desc()).\
+                   filter(PlPlugMapM.pointing_name==pointingName).order_by(PlPlugMapM.fscan_mjd.desc()).\
                    order_by(PlPlugMapM.fscan_id.desc())
            pm=pm[0]
 
@@ -857,6 +857,7 @@ def main():
    apogeeql.startQuickLook()
    apogeeql.connectQuickReduce()
    apogeeql.startQuickReduce()
+   reactor.callLater(3, apogeeql.periodicStatus)
    apogeeql.run()
 
 #-------------------------------------------------------------
