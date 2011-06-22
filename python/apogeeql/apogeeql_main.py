@@ -653,12 +653,11 @@ class Apogeeql(actorcore.Actor.Actor):
 
       # guider i seeing=2.09945
       seeing = Apogeeql.actor.models['guider'].keyVarDict['seeing'][0]
-      hdulist[0].header.update('SEEING',seeing, 'RMS seeing from guide fibers')
       try:
           seeing=float(seeing)
           if seeing == float('NaN'):
               seeing=0.0
-      except ValueError:
+      except:
           seeing=0.0
       hdulist[0].header.update('SEEING',seeing, 'RMS seeing from guide fibers')
 
