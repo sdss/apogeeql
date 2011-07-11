@@ -676,7 +676,9 @@ class Apogeeql(actorcore.Actor.Actor):
           except:
               self.logger.warn('text="failed to add card: %s=%s (%s)"' % (name, val, comment))
 
-      hdulist.writeto(outFile, clobber=True)
+      # repair (if possible) any problems with the header (mainly OBSCMNT too long)
+      hdulist.verify('fix')
+      hdulist.writeto(outFile, clobber=True, output_verify='warn', checksum=True)
       return outFile, starttime, exptime
 
 
