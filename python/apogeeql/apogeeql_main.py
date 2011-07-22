@@ -747,19 +747,31 @@ class Apogeeql(actorcore.Actor.Actor):
 
        # loop through the list and update the PLUGMAPOBJ
        for fid, j_mag, h_mag, k_mag, tmass_style, t1, t2 in ph:
-          ind = p0['PLUGMAPOBJ']['fiberId'].index(fid)
-          p0['PLUGMAPOBJ']['mag'][ind][0] = j_mag
-          p0['PLUGMAPOBJ']['mag'][ind][1] = h_mag
-          p0['PLUGMAPOBJ']['mag'][ind][2] = k_mag
-          p0['PLUGMAPOBJ']['tmass_style'][ind] = tmass_style
-          if (t2 & skymask) > 0:
-             p0['PLUGMAPOBJ']['objType'][ind] = 'SKY'
-          elif (t2 & hotmask) > 0:
-             p0['PLUGMAPOBJ']['objType'][ind] = 'HOT_STD'
-          elif (t1 & extmask) > 0:
-             p0['PLUGMAPOBJ']['objType'][ind] = 'EXTOBJ'
-          elif (t2 & starmask) == 0 and (t1 & extmask) ==0:
-             p0['PLUGMAPOBJ']['objType'][ind] = 'STAR'
+          count = p0['PLUGMAPOBJ']['fiberId'].count(fid)
+          if count >= 1:
+              # we have more than one entry for this fiberId -> get the APOGEE 
+              ind = -1
+              for i in range(count):
+                  pos = p0['PLUGMAPOBJ']['fiberId'][ind+1:].index(fid)
+                  ind = pos+ind+1
+                  if p0['PLUGMAPOBJ']['spectrographId'][ind] == 2:
+                      break
+
+              # print "fid=%d    t1=%d   t2=%d" % (fid,t1,t2)
+              # only modify the fibers for APOGEE (2)
+              if p0['PLUGMAPOBJ']['spectrographId'][ind] == 2:
+                  p0['PLUGMAPOBJ']['mag'][ind][0] = j_mag
+                  p0['PLUGMAPOBJ']['mag'][ind][1] = h_mag
+                  p0['PLUGMAPOBJ']['mag'][ind][2] = k_mag
+                  p0['PLUGMAPOBJ']['tmass_style'][ind] = tmass_style
+                  if (t2 & skymask) > 0:
+                     p0['PLUGMAPOBJ']['objType'][ind] = 'SKY'
+                  elif (t2 & hotmask) > 0:
+                     p0['PLUGMAPOBJ']['objType'][ind] = 'HOT_STD'
+                  elif (t1 & extmask) > 0:
+                     p0['PLUGMAPOBJ']['objType'][ind] = 'EXTOBJ'
+                  elif (t2 & starmask) == 0 and (t1 & extmask) ==0:
+                     p0['PLUGMAPOBJ']['objType'][ind] = 'STAR'
         
        # delete file if it already exists
        if os.path.isfile(newfilename):
