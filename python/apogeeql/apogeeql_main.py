@@ -31,7 +31,7 @@ import os, signal, subprocess, tempfile, shutil
 import time
 import types
 import yanny
-# import numpy
+import RO.Astro.Tm.MJDFromPyTuple as astroMJD
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
@@ -195,6 +195,13 @@ class Apogeeql(actorcore.Actor.Actor):
          self.datadir = os.environ["APQLDATA_DIR"]
       except:
          self.logger.error("Failed: APQLDATA_DIR is not defined")
+         traceback.print_exc()
+
+      # environment variable set by the apgquicklook setup (don't want to keep it in 2 different places)
+      try:
+         self.archive_dir = os.environ["APQLARCHIVE_DIR"]
+      except:
+         self.logger.error("Failed: APQLARCHIVE_DIR is not defined")
          traceback.print_exc()
 
       # MJD value of start of survey (Jan 1 2011) for filenames (55562)
@@ -779,6 +786,18 @@ class Apogeeql(actorcore.Actor.Actor):
 
        p0.write(newfilename)
 
+       # write a copy to the archive directory
+       # define the current mjd archive directory to store the plPlugMapA file
+       mjd = astroMJD.mjdFromPyTuple(time.gmtime())
+       fmjd = str(int(mjd + 0.3))
+       arch_dir = os.path.join(self.archive_dir, fmjd)
+       if not os.path.isdir(arch_dir):
+           os.mkdir(arch_dir, 0o0775)
+
+       res=os.path.split(newfilename)
+       archivefile = os.path.join(arch_dir,res[1])
+       p0.write(archivefile)
+ 
        return 
 
 
