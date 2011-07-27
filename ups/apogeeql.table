@@ -1,12 +1,7 @@
-#declareOptions(flavor=NULL,   name = foo)
-#setupRequired(apogeereduce)
 setupRequired(apgquicklook)
-setupRequired(apogeetest)
 setupRequired(actorcore)
-setupRequired(opscore)
 setupRequired(yannytools)
-setupRequired(hooloovookit)
-
+setupRequired(platedb)
 
 pathPrepend(PATH, ${PRODUCT_DIR}/bin)
 pathPrepend(PYTHONPATH, ${PRODUCT_DIR}/python)
