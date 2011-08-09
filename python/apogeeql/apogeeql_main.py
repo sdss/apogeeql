@@ -19,7 +19,7 @@ import actorcore.Actor
 import actorcore.CmdrConnection as actorCmdrConnection
 import actorcore.utility.fits as actorFits
 
-import pyfits
+import pyfits, warnings
 import actorkeys
 import traceback
 
@@ -167,7 +167,6 @@ class Apogeeql(actorcore.Actor.Actor):
    expType=''
    numReadsCommanded=0
    actor=''
-   startOfSurvey=55562
    obs_pk = 0
    exp_pk = 0
    cdr_dir = ''
@@ -216,6 +215,8 @@ class Apogeeql(actorcore.Actor.Actor):
       self.qlHost = self.config.get('apogeeql', 'qlHost') 
       self.qrPort = self.config.getint('apogeeql', 'qrPort') 
       self.qrHost = self.config.get('apogeeql', 'qrHost') 
+      self.criticalDiskSpace = self.config.get('apogeeql', 'criticalDiskSpace') 
+      self.seriousDiskSpace = self.config.get('apogeeql', 'seriousDiskSpace') 
 
       #
       # Explicitly load other actor models. We usually need these for FITS headers.
@@ -403,7 +404,7 @@ class Apogeeql(actorcore.Actor.Actor):
          readnum=int(res[2].split('.')[0])
          expnum=int(res[1])
       except:
-         raise RuntimeError, ( "The filename doesn't match expected format (%s)" % (filename)) 
+         raise RuntimeError( "The filename doesn't match expected format (%s)" % (filename)) 
 
       if readnum == 1:
          # get the corresponding platedb.observation.pk (creating a new one if necessary)
@@ -455,7 +456,7 @@ class Apogeeql(actorcore.Actor.Actor):
          shutil.copy2(infile,outfile)
          # print "shutil.copy2 took %f seconds" % (time.time()-t0)
       except:
-         raise RuntimeError, ( "Failed to copy the summary file (%s)" % (filename)) 
+         raise RuntimeError( "Failed to copy the summary file (%s)" % (filename)) 
 
 
    def connectQuickLook(self):
@@ -572,26 +573,22 @@ class Apogeeql(actorcore.Actor.Actor):
 
    def periodicStatus(self):
       '''Run some command periodically'''
-      #
-      # Obtain and send the data
-      #
       self.callCommand('update')
       reactor.callLater(int(self.config.get(self.name, 'updateInterval')), self.periodicStatus)
 
+   def periodicDisksStatus(self):
+      '''Check on the disk free space '''
+      self.callCommand('checkdisks')
+      reactor.callLater(int(self.config.get(self.name, 'diskAlarmInterval')), self.periodicDisksStatus)
+
    def sendAliveTest(self):
       '''Run some command periodically'''
-      #
-      # Obtain and send the data
-      #
       self.watchDogStatus = False
       s.sendLine('PING')
       reactor.callLater(int(self.watchDogTimer), self.isApqlAlive)
 
    def isApqlAlive(self):
       '''Run some command periodically'''
-      #
-      # Obtain and send the data
-      #
       if not self.watchDogStatus:
          # APQL is not reponding - > restart it
          self.logger.warn("APOGEEQL -> IDL_QL process not responding ... restarting ...")
@@ -629,7 +626,7 @@ class Apogeeql(actorcore.Actor.Actor):
          mjd = int(res[1][:4])+int(self.startOfSurvey)
          outdir = os.path.join(self.datadir,str(mjd))
       except:
-         raise RuntimeError, ( "The filename doesn't match expected format (%s)" % (filename)) 
+         raise RuntimeError( "The filename doesn't match expected format (%s)" % (filename)) 
 
       # create directory if it doesn't exist
       if not os.path.isdir(outdir):
@@ -637,7 +634,16 @@ class Apogeeql(actorcore.Actor.Actor):
       outFile = os.path.join(outdir, filename)
       filename = os.path.join(indir, filename)
 
-      hdulist = pyfits.open(filename, uint16=True)
+      # pyfits only warns about bad checksum - change the warning behavior to trigger an exception
+      warnings.simplefilter("always")
+      warnings.simplefilter("error")
+      try:
+          hdulist = pyfits.open(filename, uint16=True, checksum=True)
+      except:
+          # something went wrong reading the file (with the checksum)
+          self.bcast.warn('text="ERROR: BAD CHECKSUM while reading file %s"' % filename)
+      warnings.resetwarnings()
+
       hdulist[0].header.update('TELESCOP' , 'SDSS 2-5m')
       hdulist[0].header.update('FILENAME' ,outFile)
       hdulist[0].header.update('EXPTYPE' ,self.expType)
@@ -699,7 +705,7 @@ class Apogeeql(actorcore.Actor.Actor):
                    filter(PlPlugMapM.pointing_name==pointingName).order_by(PlPlugMapM.fscan_mjd.desc()).\
                    order_by(PlPlugMapM.fscan_id.desc()).one()
        except sqlalchemy.orm.exc.NoResultFound:
-           raise RuntimeError, ("NO plugmap from for plate %d" % (plateId))
+           raise RuntimeError("NO plugmap from for plate %d" % (plateId))
        except sqlalchemy.orm.exc.MultipleResultsFound:
            # raise RuntimeError, ("More than one plugmap from for plate %d" % (plateId))
            # use thae last entry hoping all is well
@@ -815,7 +821,7 @@ class Apogeeql(actorcore.Actor.Actor):
                    join(Plate).filter(Plate.plate_id==self.prevPlate)
              if platePointing.count() != 1:
                  # found more than one entry for the plate_pointing
-                 raise RuntimeError, (\
+                 raise RuntimeError(\
                        "Found more than one platedb.plate_pointing for plate %d and pointing %s" % \
                        (plate, pointing))
              # see if a matching entry in the observation table exists
@@ -838,7 +844,7 @@ class Apogeeql(actorcore.Actor.Actor):
                 return observation[0].pk
              else: 
                 # we found more than one entry
-                 raise RuntimeError, ("Found more than one entry in the observation table")
+                 raise RuntimeError("Found more than one entry in the observation table")
 
        # create a new entry in the observation tabel without an associated plugging
        self.mysession.begin()
@@ -890,6 +896,7 @@ def main():
    apogeeql.connectQuickReduce()
    apogeeql.startQuickReduce()
    reactor.callLater(3, apogeeql.periodicStatus)
+   reactor.callLater(30, apogeeql.periodicDisksStatus)
    apogeeql.run()
 
 #-------------------------------------------------------------
