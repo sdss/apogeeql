@@ -3,7 +3,7 @@
 import pdb
 import logging
 import pprint
-import re, sys, time
+import re, sys, time, os
 from time import sleep
 
 import opscore.protocols.keys as keys
@@ -29,6 +29,7 @@ class apogeeqlCmd(object):
          ('ping', '', self.ping),
          ('status', '', self.status),
          ('update', '', self.update),
+         ('checkdisks', '', self.checkDisks),
          ('stopidl', '', self.stopIDL),
          ('startidl', '', self.startIDL),
          ('ql', '<cmd>', self.quicklook),
@@ -56,11 +57,50 @@ class apogeeqlCmd(object):
 
       cmd.inform('rootURL=%s' % (self.actor.rootURL))
       cmd.inform('snrAxisRange=%s,%s' % (self.actor.snrAxisRange[0],self.actor.snrAxisRange[1]))
-      keyStrings = ['text="nothing to say, really"']
-      keyMsg = '; '.join(keyStrings)
+      # keyStrings = ['text="nothing to say, really"']
+      # keyMsg = '; '.join(keyStrings)
 
-      cmd.inform(keyMsg)
-      cmd.diag('text="still nothing to say"')
+      # cmd.inform(keyMsg)
+      # cmd.diag('text="still nothing to say"')
+      cmd.finish()
+
+   def checkDisks(self, cmd=None):
+      '''Report full status'''
+      if not cmd:
+         cmd = self.actor.bcast
+
+      s=os.statvfs(self.actor.ics_datadir)
+      icsSpace = s.f_bsize * s.f_bavail / 1024 / 1024 / 1024  # free space in GB
+
+      s=os.statvfs(self.actor.datadir)
+      qlSpace = s.f_bsize * s.f_bavail / 1024 / 1024 / 1024  # free space in GB
+
+      s=os.statvfs(self.actor.archive_dir)
+      archSpace = s.f_bsize * s.f_bavail / 1024 / 1024 / 1024  # free space in GB
+
+      cmd.inform('freeDiskSpace=%d,%d,%d' % (icsSpace, qlSpace, archSpace))
+
+      if icsSpace > int(self.actor.seriousDiskSpace):
+          cmd.inform('icsDiskAlarm=Ok,%d' % (icsSpace))
+      elif icsSpace > int(self.actor.criticalDiskSpace):
+          cmd.warn('icsDiskAlarm=Serious,%d' % (icsSpace))
+      else:
+          cmd.warn('icsDiskAlarm=Critical,%d' % (icsSpace))
+
+      if qlSpace > int(self.actor.seriousDiskSpace):
+          cmd.inform('qlDiskAlarm=Ok,%d' % (qlSpace))
+      elif qlSpace > int(self.actor.criticalDiskSpace):
+          cmd.warn('qlDiskAlarm=Serious,%d' % (qlSpace))
+      else:
+          cmd.warn('qlDiskAlarm=Critical,%d' % (qlSpace))
+
+      if archSpace > int(self.actor.seriousDiskSpace):
+          cmd.inform('archDiskAlarm=Ok,%d' % (archSpace))
+      elif archSpace > int(self.actor.criticalDiskSpace):
+          cmd.warn('archDiskAlarm=Serious,%d' % (archSpace))
+      else:
+          cmd.warn('archDiskAlarm=Critical,%d' % (archSpace))
+
       cmd.finish()
 
    def startIDL(self, cmd):
