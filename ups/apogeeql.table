@@ -1,7 +1,7 @@
-setupRequired(apgquicklook)
 setupRequired(actorcore)
 setupRequired(yannytools)
 setupRequired(platedb)
+setupRequired(apgquicklook)
 
 pathPrepend(PATH, ${PRODUCT_DIR}/bin)
 pathPrepend(PYTHONPATH, ${PRODUCT_DIR}/python)
