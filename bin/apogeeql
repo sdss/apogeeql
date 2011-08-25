@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Use the Xvfb display
+export DISPLAY=:1
+
 PRODNAME=apogeeql
 
 PRODNAME_UC=$(echo $PRODNAME | tr a-z A-Z)
