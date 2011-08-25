@@ -158,7 +158,7 @@ class Apogeeql(actorcore.Actor.Actor):
    prevScanMJD = -1
    prevPointing='A'
    pluggingPk = 0
-   apogeeSurveyPk=0
+   apogeeSurveyPk=1   # use the known APOGEE survey value in the db as default
    plugFname=''
    inst = ''
    startExp = False
@@ -177,7 +177,7 @@ class Apogeeql(actorcore.Actor.Actor):
    watchDogStatus=True  # if True, the idl code is stil responding
    watchDogTimer=2.0    # should return a reply within this time if still alive
 
-   def __init__(self, name, productName=None, configFile=None, debugLevel=30):
+   def __init__(self, name, productName=None, configFile=None, debugLevel=1):
       actorcore.Actor.Actor.__init__(self, name, productName=productName, configFile=configFile)
 
       Apogeeql.actor=self
@@ -211,6 +211,7 @@ class Apogeeql(actorcore.Actor.Actor):
       self.ics_datadir = self.config.get('apogeeql','ics_datadir')
       self.cdr_dir = self.config.get('apogeeql','cdr_dir')
       self.summary_dir = self.config.get('apogeeql','summary_dir')
+      self.delFile = self.config.get('apogeeql','delFile')
       self.qlPort = self.config.getint('apogeeql', 'qlPort') 
       self.qlHost = self.config.get('apogeeql', 'qlHost') 
       self.qrPort = self.config.getint('apogeeql', 'qrPort') 
@@ -280,6 +281,9 @@ class Apogeeql(actorcore.Actor.Actor):
       survey=Apogeeql.actor.mysession.query(Survey).filter(Survey.label=='APOGEE')
       if survey.count() > 0:
          Apogeeql.actor.apogeeSurveyPk = survey[0].pk
+
+      Apogeeql.actor.logger.info('survey.count() = %d' % (survey.count()))
+      Apogeeql.actor.logger.info('Apogeeql.actor.apogeeSurveyPk = %d' % (Apogeeql.actor.apogeeSurveyPk))
 
       if plate != Apogeeql.prevPlate or cartridge != Apogeeql.prevCartridge or pointing != Apogeeql.prevPointing:
          # we need to ignore all plates that are not for APOGEE or MARVELS
@@ -358,7 +362,7 @@ class Apogeeql(actorcore.Actor.Actor):
             Apogeeql.numReadsCommanded = 0
             res = keyVar[3].split('-')
             Apogeeql.frameid = res[1][:8]
-            mjd5 = int(Apogeeql.frameid[:4]) + Apogeeql.startOfSurvey
+            mjd5 = int(Apogeeql.frameid[:4]) + int(Apogeeql.actor.startOfSurvey)
             # do something for the quickreduction at the end of an exposure
             for s in Apogeeql.qlSources:
                s.sendLine('UTR=DONE')
@@ -400,7 +404,7 @@ class Apogeeql(actorcore.Actor.Actor):
       # get the mjd from the filename
       res=filename.split('-')
       try:
-         mjd = int(res[1][:4]) + Apogeeql.startOfSurvey
+         mjd = int(res[1][:4]) + int(Apogeeql.actor.startOfSurvey)
          readnum=int(res[2].split('.')[0])
          expnum=int(res[1])
       except:
@@ -440,7 +444,7 @@ class Apogeeql(actorcore.Actor.Actor):
       filename=keyVar[0]
       res=(filename.split('-'))[1].split('.')
       dayOfSurvey = res[0][:4]
-      mjd = int(dayOfSurvey) + int(Apogeeql.startOfSurvey)
+      mjd = int(dayOfSurvey) + int(Apogeeql.actor.startOfSurvey)
       indir=Apogeeql.actor.summary_dir
       outdir = Apogeeql.actor.cdr_dir
 
@@ -634,15 +638,42 @@ class Apogeeql(actorcore.Actor.Actor):
       outFile = os.path.join(outdir, filename)
       filename = os.path.join(indir, filename)
 
-      # pyfits only warns about bad checksum - change the warning behavior to trigger an exception
-      warnings.simplefilter("always")
-      warnings.simplefilter("error")
-      try:
-          hdulist = pyfits.open(filename, uint16=True, checksum=True)
-      except:
-          # something went wrong reading the file (with the checksum)
-          self.bcast.warn('text="ERROR: BAD CHECKSUM while reading file %s"' % filename)
-      warnings.resetwarnings()
+      # Since the Java nom.tam.fits library used by the ICS has an incompatible
+      # checksum calculation with pyfits, we're rolling our own here
+
+      # first extract the value of the checksum from the fits header (pyfits.getval removes
+      # any checksum or datasum keywords)
+      f=open(filename,'rb')
+      checksum = None
+      # only read the first 72 lines (which should be the whole header plus padding)
+      for p in range(72):
+          line = f.read(80)
+          if line[0:8] == 'END     ':
+              break
+          if line[0:8] == 'CHECKSUM':
+              checksum = line[11:27]
+              cs_comment = line[33:80]
+
+      f.close()
+      hdulist = pyfits.open(filename, uint16=True)
+      if checksum != None:
+          # validate the value of the checksum found (corresponding to DATASUM in pyfits)
+          # calulate the datasum
+          ds = hdulist[0]._calculate_datasum('standard')
+
+          # add a new CHECKSUM line to the header (pyfits.open removes it) with same comment
+          hdulist[0].header.update("CHECKSUM",'0'*16, cs_comment)
+
+          # calulate a new checksum
+          cs=hdulist[0]._calculate_checksum(ds,'standard')
+          if cs != checksum:
+              self.logger.error("CHECKSUM Failed for file %s" % (filename))
+          else:
+              # self.logger.info("CHECKSUM checked ok")
+              f = open(os.path.join(outdir,Apogeeql.actor.delFile),'a')
+              f.write(filename+'\n')
+              f.close()
+
 
       hdulist[0].header.update('TELESCOP' , 'SDSS 2-5m')
       hdulist[0].header.update('FILENAME' ,outFile)
@@ -862,6 +893,9 @@ class Apogeeql(actorcore.Actor.Actor):
        new_exp = Exposure()
        new_exp.observation_pk = obs_pk
        new_exp.exposure_no = readnum
+
+       Apogeeql.actor.logger.info('self.apogeeSurveyPk = %d' % (self.apogeeSurveyPk))
+
        new_exp.survey_pk = self.apogeeSurveyPk
        new_exp.start_time = starttime
        new_exp.exposure_time = exptime
