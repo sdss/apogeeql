@@ -172,6 +172,8 @@ class Apogeeql(actorcore.Actor.Actor):
    cdr_dir = ''
    summary_dir = ''
    frameid = ''
+   ditherPos = 0.0
+   namedDitherPos = ''
 
    # setup the variables for the watchdog to the IDL code
    watchDogStatus=True  # if True, the idl code is stil responding
@@ -235,6 +237,7 @@ class Apogeeql(actorcore.Actor.Actor):
       self.models["apogee"].keyVarDict["exposureState"].addCallback(self.ExposureStateCB, callNow=False)
       self.models["apogee"].keyVarDict["exposureWroteFile"].addCallback(self.exposureWroteFileCB, callNow=False)
       self.models["apogee"].keyVarDict["exposureWroteSummary"].addCallback(self.exposureWroteSummaryCB, callNow=False)
+      self.models["apogee"].keyVarDict["ditherPosition"].addCallback(self.ditherPositionCB, callNow=False)
 
       #
       # Connect to the platedb
@@ -281,9 +284,6 @@ class Apogeeql(actorcore.Actor.Actor):
       survey=Apogeeql.actor.mysession.query(Survey).filter(Survey.label=='APOGEE')
       if survey.count() > 0:
          Apogeeql.actor.apogeeSurveyPk = survey[0].pk
-
-      Apogeeql.actor.logger.info('survey.count() = %d' % (survey.count()))
-      Apogeeql.actor.logger.info('Apogeeql.actor.apogeeSurveyPk = %d' % (Apogeeql.actor.apogeeSurveyPk))
 
       if plate != Apogeeql.prevPlate or cartridge != Apogeeql.prevCartridge or pointing != Apogeeql.prevPointing:
          # we need to ignore all plates that are not for APOGEE or MARVELS
@@ -422,6 +422,9 @@ class Apogeeql(actorcore.Actor.Actor):
          # print 'Apogeeql.obs_pk=',Apogeeql.obs_pk
          # print 'Apogeeql.exp_pk=',Apogeeql.exp_pk
 
+         # Apogeeql.actor.logger.info('Apogeeql.obs_pk = %d' % (Apogeeql.obs_pk))
+         # Apogeeql.actor.logger.info('Apogeeql.exp_pk = %d' % (Apogeeql.exp_pk))
+
       for s in Apogeeql.qlSources:
          s.sendLine('UTR=%s,%d,%d,%d' % (newfilename, Apogeeql.exp_pk, readnum, Apogeeql.numReadsCommanded))
 
@@ -461,6 +464,22 @@ class Apogeeql(actorcore.Actor.Actor):
          # print "shutil.copy2 took %f seconds" % (time.time()-t0)
       except:
          raise RuntimeError( "Failed to copy the summary file (%s)" % (filename)) 
+
+   @staticmethod
+   def ditherPositionCB(keyVar):
+
+      '''callback routine for apogeeICC.ditherPosition '''
+      # ditherPosition=13.9977,A
+      # test existance of passed variable
+      # print "ditherPositionCB=",keyVar
+      if not keyVar.isGenuine:
+         return
+
+      # save the current dither pixel and named position
+      Apogeeql.ditherPos = float(keyVar[0])
+      Apogeeql.namedDitherPos = keyVar[1]
+      for s in Apogeeql.actor.qlSources:
+          s.sendLine('ditherPosition=%f,%s' % (Apogeeql.ditherPos, Apogeeql.namedDitherPos))
 
 
    def connectQuickLook(self):
@@ -859,6 +878,7 @@ class Apogeeql(actorcore.Actor.Actor):
              platePointing = platePointing[0]
              observation=self.mysession.query(Observation).filter(Observation.plate_pointing_pk==platePointing.pk).\
                    filter(Observation.plugging_pk==self.pluggingPk).filter(Observation.mjd==mjd)
+
              if observation.count() == 0:
                 # no observation entry found -> create one (start a new observation)
                 self.mysession.begin()
@@ -877,7 +897,7 @@ class Apogeeql(actorcore.Actor.Actor):
                 # we found more than one entry
                  raise RuntimeError("Found more than one entry in the observation table")
 
-       # create a new entry in the observation tabel without an associated plugging
+       # create a new entry in the observation table without an associated plugging
        self.mysession.begin()
        new_obs=Observation()
        new_obs.mjd=mjd
@@ -893,8 +913,6 @@ class Apogeeql(actorcore.Actor.Actor):
        new_exp = Exposure()
        new_exp.observation_pk = obs_pk
        new_exp.exposure_no = readnum
-
-       Apogeeql.actor.logger.info('self.apogeeSurveyPk = %d' % (self.apogeeSurveyPk))
 
        new_exp.survey_pk = self.apogeeSurveyPk
        new_exp.start_time = starttime
