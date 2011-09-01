@@ -361,7 +361,7 @@ class Apogeeql(actorcore.Actor.Actor):
             Apogeeql.expType = keyVar[1].upper()
             filebase = keyVar[3]
             # make sure we have all the UTR files before bundling
-            Apogeeql.completeUTR(filebase)
+            Apogeeql.completeUTR(Apogeeql.actor,filebase)
             Apogeeql.numReadsCommanded = 0
             res = keyVar[3].split('-')
             Apogeeql.frameid = res[1][:8]
@@ -944,36 +944,38 @@ class Apogeeql(actorcore.Actor.Actor):
    def completeUTR(self,filebase=None):
        """Verifies that all of the UTR files where copied from the ICS"""
 
-      # expecting something like: apRaw-DDDDXXXX
-      # make sure a filebase was passed
-      if not filebase: 
-          return
+       # expecting something like: apRaw-DDDDXXXX
+       # make sure a filebase was passed
+       if not filebase: 
+           return
 
-      res=filebase.split('-')
-      try:
-         indir  = os.path.join(self.ics_datadir,res[1][:4])
-         mjd = int(res[1][:4])+int(self.startOfSurvey)
-         outdir = os.path.join(self.datadir,str(mjd))
-      except:
-         raise RuntimeError( "The filename doesn't match expected format (%s)" % (filename)) 
-
-      lst = glob.glob(filebase+'*.fits')
-      lst.sort()
-      count=0
-      for infile in lst:
-          # check that the file exists in the outdir
-          if not os.exists(os.path.join(outdir,infile)):
-              # need to annotate and copy the file
-              count+=1
-              # should we try this or just make a copy without the annotation?
-              newfilename, starttime, exptime = self.appendFitsKeywords(os.path.join(indir,infile))
-              if not os.exists(os.path.join(outdir,infile)):
-                  # copy the file if appendFitsKeywords did not work
-                  shutil.copy(infile,outdir)
-
-      if count > 0:
-          self.logger.warn('APOGEEQL -> had %d missing UTR' % (count))
-      return
+       res=filebase.split('-')
+       try:
+          indir  = os.path.join(self.ics_datadir,res[1][:4])
+          mjd = int(res[1][:4])+int(self.startOfSurvey)
+          outdir = os.path.join(self.datadir,str(mjd))
+       except:
+          raise RuntimeError( "The filename doesn't match expected format (%s)" % (filename)) 
+ 
+       lst = glob.glob(os.path.join(indir,filebase+'*.fits'))
+       lst.sort()
+       count=0
+       for infile in lst:
+           # check that the file exists in the outdir
+           outfile = os.path.join(outdir,os.path.basename(infile))
+           if not os.path.exists(outfile):
+               # need to annotate and copy the file
+               count+=1
+               # should we try this or just make a copy without the annotation?
+               newfilename, starttime, exptime = self.appendFitsKeywords(os.path.basename(infile))
+               if not os.path.exists(outfile):
+                   # copy the file if appendFitsKeywords did not work
+                   shutil.copy(infile,outdir)
+ 
+       if count > 0:
+           self.bcast.warn('text="%s had %d missing UTR"' % (filebase,count))
+           self.logger.info('APOGEEQL -> had %d missing UTR' % (count))
+       return
 
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
