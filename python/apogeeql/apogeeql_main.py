@@ -371,7 +371,9 @@ class Apogeeql(actorcore.Actor.Actor):
                s.sendLine('UTR=DONE')
             for s in Apogeeql.qrSources:
                s.sendLine('UTR=DONE,%s,%d,%s' % (Apogeeql.frameid, mjd5, Apogeeql.exp_pk))
-      else:
+      elif Apogeeql.expState.upper() != 'STOPPING':
+         # when a stop was requested, a couple of images will still be coming in
+         # only change the startExp in other cases
          Apogeeql.startExp = False
 
 
