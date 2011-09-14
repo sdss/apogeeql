@@ -731,6 +731,13 @@ class Apogeeql(actorcore.Actor.Actor):
 
       # starttime is MJD in seconds
       starttime = mjd*24.0*3600.0
+      time_string = hdulist[0].header['DATE-OBS']
+      p = time_string.find(':')
+      if p > 0:
+          hours = float(time_string[p-2:p])
+          minutes = float(time_string[p+1:p+3])
+          seconds=float(time_string[p+4:])
+          startime = starttime + seconds + (minutes + hours*60.0) * 60.0
       exptime = hdulist[0].header['exptime']
 
       cards=[]
