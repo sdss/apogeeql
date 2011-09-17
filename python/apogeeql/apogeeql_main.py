@@ -415,7 +415,7 @@ class Apogeeql(actorcore.Actor.Actor):
       except:
          raise RuntimeError( "The filename doesn't match expected format (%s)" % (filename)) 
 
-      if readnum == 1:
+      if readnum == 1 or Apogeeql.exp_pk == 0:
          # get the corresponding platedb.observation.pk (creating a new one if necessary)
          survey = Apogeeql.actor.mysession.query(Survey).join(PlateToSurvey).join(Plate).filter(Plate.plate_id==Apogeeql.prevPlate)
 
