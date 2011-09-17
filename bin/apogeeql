@@ -4,6 +4,8 @@
 export DISPLAY=:1
 
 PRODNAME=apogeeql
+QLPRODNAME=apql_wrapper
+QRPRODNAME=apqr_wrapper
 
 PRODNAME_UC=$(echo $PRODNAME | tr a-z A-Z)
 PROD_DIR=$(eval echo \$${PRODNAME_UC}_DIR)
@@ -39,14 +41,19 @@ now() {
 # Return the program's pid, or the empty string.
 #
 get_pid() {
+    if test "$1"; then
+        THISPROG=$1
+    else
+        THISPROG=$PRODNAME
+    fi
     PID=""
-    pid=$(/bin/ps -e -ww -o pid,user,command | egrep -v 'awk|grep' | grep "python ${PRODNAME}_main.py" | awk '{print $1}')
+    pid=$(/bin/ps -e -ww -o pid,user,command | egrep -v 'awk|grep' | grep "${THISPROG}" | awk '{print $1}')
     PID=$pid
 
     if test "$pid"; then
-        echo "$PRODNAME is running as process $pid"
+        echo "$THISPROG is running as process $pid"
     else
-        echo "$PRODNAME is not running"
+        echo "$THISPROG is not running"
     fi
 }
 
@@ -54,7 +61,7 @@ get_pid() {
 # and does not start a new one.
 #
 do_start() {
-    get_pid
+    get_pid apogeeql_main
 
     if test "$PID"; then
         echo "NOT starting new $PRODNAME. Use restart if you want a new one."
@@ -83,31 +90,57 @@ do_start() {
 # Stop any running ICC.
 #
 do_stop() {
-    get_pid
-
-    if test ! "$PID"; then
-        return
+    # we need to stop the idl routines first
+    PROGNAME=apqr_wrapper
+    get_pid $PROGNAME
+    if test "$PID"; then
+        echo "Stopping $PROGNAME."
+        kill -TERM $PID
     fi
 
-    echo "Stopping $PRODNAME."
-    kill -TERM $PID
+    PROGNAME=apql_wrapper
+    get_pid $PROGNAME
+    if test "$PID"; then
+        echo "Stopping $PROGNAME."
+        kill -TERM $PID
+    fi
+
+    get_pid apogeeql_main
+    if test "$PID"; then
+        echo "Stopping $PRODNAME."
+        kill -TERM $PID
+    fi
 }
 
 # Stop any running ICC fairly violently.
 #
 do_stopdead() {
-    get_pid
-
-    if test ! "$PID"; then
-        return
+    PROGNAME=apqr_wrapper
+    get_pid $PROGNAME
+    if test "$PID"; then
+        echo "Stopping $PROGNAME gently."
+        kill -TERM $PID
+        sleep 2
+        echo "Stopping $PROGNAME meanly."
+        kill -KILL $PID
     fi
-
-    echo "Stopping $PRODNAME gently."
-    kill -TERM $PID
-    sleep 2
-
-    echo "Stopping $PRODNAME meanly."
-    kill -KILL $PID
+    PROGNAME=apql_wrapper
+    get_pid $PROGNAME
+    if test "$PID"; then
+        echo "Stopping $PROGNAME gently."
+        kill -TERM $PID
+        sleep 2
+        echo "Stopping $PROGNAME meanly."
+        kill -KILL $PID
+    fi
+    get_pid apogeeql_main
+    if test "$PID"; then
+        echo "Stopping $PRODNAME gently."
+        kill -TERM $PID
+        sleep 2
+        echo "Stopping $PRODNAME meanly."
+        kill -KILL $PID
+    fi
 }
 
 # Query a running ICC for simple status.
