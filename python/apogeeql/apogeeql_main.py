@@ -516,6 +516,10 @@ class Apogeeql(actorcore.Actor.Actor):
 
    def stopQuickLook(self):
       '''If a quickLook IDL process already exists - just kill it (for now)'''
+      # first send a QUIT command to the program
+      for s in self.qlSources:
+         s.sendLine('QUIT')
+
       if self.ql_pid == 0:
          p1=subprocess.Popen(['/bin/ps'],stdout=subprocess.PIPE)
          # apql_wrapper is the name of the program ran when starting IDL (in apogeeql.cfg)
@@ -572,6 +576,10 @@ class Apogeeql(actorcore.Actor.Actor):
 
    def stopQuickReduce(self):
       '''If a quickReduce IDL process already exists - just kill it (for now)'''
+      # first send a QUIT command to the program
+      for s in self.qrSources:
+         s.sendLine('QUIT')
+
       if self.qr_pid == 0:
          p1=subprocess.Popen(['/bin/ps'],stdout=subprocess.PIPE)
          # apqr_wrapper is the name of the program ran when starting IDL (in apogeeqr.cfg)
@@ -590,7 +598,7 @@ class Apogeeql(actorcore.Actor.Actor):
             # process exists -> kill it
             self.qr_pid = output.split()[0]
 
-      os.kill(self.ql_pid,signal.SIGKILL)
+      os.kill(self.qr_pid,signal.SIGKILL)
       killedpid, stat = os.waitpid(self.qr_pid, os.WNOHANG)
       if killedpid == 0:
          # failed in killing old IDL process
@@ -987,9 +995,69 @@ class Apogeeql(actorcore.Actor.Actor):
        return
 
 
+
+#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+def kill_handler(signum, frame):
+   # send the quit message to the idl routines
+   print 'Signal handler called with signal', signum
+   logging.info("Stopping the IDL processes ... ")
+   # stopping apqr_wrapper
+
+   p1=subprocess.Popen(['/bin/ps'],stdout=subprocess.PIPE)
+   # apqr_wrapper is the name of the program ran when starting IDL (in apogeeqr.cfg)
+   processName = (self.config.get('apogeeql','qrCommandName')).split()
+   if '-e' in processName:
+       # look at the name of the program called when IDL is started
+       pos = processName[processName.index('-e')+1]
+   else:
+       pos = 0
+   args = ['grep',processName[pos]]
+   p2=subprocess.Popen(args,stdin=p1.stdout,stdout=subprocess.PIPE)
+   output=p2.communicate()[0]
+   p2.kill()
+   p1.kill()
+   if len(output) > 0:
+       # process exists -> kill it
+       qr_pid = output.split()[0]
+       os.kill(qr_pid,signal.SIGKILL)
+       killedpid, stat = os.waitpid(qr_pid, os.WNOHANG)
+       if killedpid == 0:
+          # failed in killing old IDL process
+          # print error message here
+          logging.warn("Unable to kill existing apogeeql_IDL process %s" % qr_pid)
+
+
+   p1=subprocess.Popen(['/bin/ps'],stdout=subprocess.PIPE)
+   # apqr_wrapper is the name of the program ran when starting IDL (in apogeeqr.cfg)
+   processName = (self.config.get('apogeeql','qlCommandName')).split()
+   if '-e' in processName:
+       # look at the name of the program called when IDL is started
+       pos = processName[processName.index('-e')+1]
+   else:
+       pos = 0
+   args = ['grep',processName[pos]]
+   p2=subprocess.Popen(args,stdin=p1.stdout,stdout=subprocess.PIPE)
+   output=p2.communicate()[0]
+   p2.kill()
+   p1.kill()
+   if len(output) > 0:
+       # process exists -> kill it
+       ql_pid = output.split()[0]
+       os.kill(ql_pid,signal.SIGKILL)
+       killedpid, stat = os.waitpid(ql_pid, os.WNOHANG)
+       if killedpid == 0:
+          # failed in killing old IDL process
+          # print error message here
+          logging.warn("Unable to kill existing apogeeql_IDL process %s" % ql_pid)
+
+   sys.exit()
+
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 def main():
+   import os, signal
+
    apogeeql = Apogeeql('apogeeql', 'apogeeql')
    apogeeql.connectQuickLook()
    apogeeql.startQuickLook()
@@ -997,7 +1065,9 @@ def main():
    apogeeql.startQuickReduce()
    reactor.callLater(3, apogeeql.periodicStatus)
    reactor.callLater(30, apogeeql.periodicDisksStatus)
+   signal.signal(signal.SIGTERM, kill_handler)
    apogeeql.run()
+
 
 #-------------------------------------------------------------
 if __name__ == '__main__':
