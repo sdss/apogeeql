@@ -843,9 +843,12 @@ class Apogeeql(actorcore.Actor.Actor):
               # print "fid=%d    t1=%d   t2=%d" % (fid,t1,t2)
               # only modify the fibers for APOGEE (2)
               if p0['PLUGMAPOBJ']['spectrographId'][ind] == 2:
-                  p0['PLUGMAPOBJ']['mag'][ind][0] = j_mag
-                  p0['PLUGMAPOBJ']['mag'][ind][1] = h_mag
-                  p0['PLUGMAPOBJ']['mag'][ind][2] = k_mag
+                  if not (j_mag and h_mag and k_mag):
+                      #cmd.warn('text="some IR mags are bad: j=%s h=%s k=%s"' % (j_mag, h_mag, k_mag))
+                      logging.warn('text="some IR mags are bad: j=%s h=%s k=%s"' % (j_mag, h_mag, k_mag))
+                  p0['PLUGMAPOBJ']['mag'][ind][0] = j_mag if j_mag else 0.0
+                  p0['PLUGMAPOBJ']['mag'][ind][1] = h_mag if h_mag else 0.0
+                  p0['PLUGMAPOBJ']['mag'][ind][2] = k_mag if k_mag else 0.0
                   p0['PLUGMAPOBJ']['tmass_style'][ind] = tmass_style
                   if (t2 & skymask) > 0:
                      p0['PLUGMAPOBJ']['objType'][ind] = 'SKY'
