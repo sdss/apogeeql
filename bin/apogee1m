@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# Use the Xvfb display
+export DISPLAY=:1
+
+PRODNAME=apogee1m
+
+PRODNAME_UC=$(echo $PRODNAME | tr a-z A-Z)
+PROD_DIR=$(eval echo \$${PRODNAME_UC}_DIR)
+
+if test -z "$PROD_DIR"; then
+    echo "Product $PRODNAME is not setup"
+    exit 1
+fi
+export LOG_DIR=$HOME/logs/$PRODNAME
+
+echo
+echo ====================== Using $PRODNAME from $PROD_DIR
+echo
+
+cd $PROD_DIR/python/$PRODNAME/1m
+python ${PRODNAME}_main.py >$LOG_DIR/$now 2>&1 &
+
