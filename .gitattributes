@@ -3,6 +3,9 @@ bin/apogeeql -text
 bin/plugmapm2a.py -text
 bin/talk2ql.py -text
 etc/apogeeql.cfg -text
+python/1m/CallEditFitsFunc.py -text
+python/1m/ICS.py -text
+python/1m/StatFunc1m.py -text
 python/apogeeql/Commands/__init__.py -text
 python/apogeeql/Commands/apogeeqlCmd.py -text
 python/apogeeql/__init__.py -text
