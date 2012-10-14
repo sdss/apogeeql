@@ -1,6 +1,7 @@
 from socket import *
 import numpy as np
 import pyfits as pyf
+import sys
 import os
 import datetime
 import CallEditFitsFunc
@@ -158,5 +159,6 @@ while 1:
     else:
         print 'Not Acceptable command'
   nread = nread + 1
+  sys.stdout.flush()
 svr.close()
 print 'No longer taking commands'
