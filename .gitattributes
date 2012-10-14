@@ -10,7 +10,6 @@ python/apogeeql/1m/apogee1m.py -text
 python/apogeeql/Commands/__init__.py -text
 python/apogeeql/Commands/apogeeqlCmd.py -text
 python/apogeeql/__init__.py -text
-python/apogeeql/apogee1m_main.py -text
 python/apogeeql/apogeeql_main.py -text
 /setup.py -text
 ups/apogeeql.table -text
