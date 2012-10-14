@@ -21,6 +21,6 @@ echo
 now=`now`1m.log
 (cd $LOG_DIR; rm -f current1m.log; ln -s $now current1m.log)
 
-cd $PROD_DIR/python/$PRODNAME
-python apogee1m_main.py >$LOG_DIR/$now 2>&1 &
+cd $PROD_DIR/python/$PRODNAME/1m
+python apogee1m.py >$LOG_DIR/$now 2>&1 &
 
