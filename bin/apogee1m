@@ -18,9 +18,14 @@ echo
 echo ====================== Using $PRODNAME from $PROD_DIR
 echo
 
+now=`now`1midl.log
+(cd $LOG_DIR; rm -f current1midl.log; ln -s $now current1midl.log)
+idl -e apcheck,/do1m,/today,/nomd5,loop=100 >$LOG_DIR/$now 2>&1 &
+jobidl=$!
+
 now=`now`1m.log
 (cd $LOG_DIR; rm -f current1m.log; ln -s $now current1m.log)
-
 cd $PROD_DIR/python/$PRODNAME/1m
-python apogee1m.py >$LOG_DIR/$now 2>&1 &
+python apogee1m.py >$LOG_DIR/$now 2>&1 
 
+kill $jobidl
