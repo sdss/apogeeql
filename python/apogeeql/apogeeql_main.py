@@ -220,6 +220,7 @@ class Apogeeql(actorcore.Actor.Actor):
       self.qrHost = self.config.get('apogeeql', 'qrHost') 
       self.criticalDiskSpace = self.config.get('apogeeql', 'criticalDiskSpace') 
       self.seriousDiskSpace = self.config.get('apogeeql', 'seriousDiskSpace') 
+      self.warningDiskSpace = self.config.get('apogeeql', 'warningDiskSpace')
 
       #
       # Explicitly load other actor models. We usually need these for FITS headers.

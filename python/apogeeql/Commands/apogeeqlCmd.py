@@ -64,8 +64,20 @@ class apogeeqlCmd(object):
       # cmd.diag('text="still nothing to say"')
       cmd.finish()
 
+   def _checkDisk(self,space,diskName):
+      '''Send appropriate keyword message about current space remaining on diskName.'''
+      if space > int(self.actor.warningDiskSpace):
+          cmd.inform('%sDiskAlarm=Ok,%d' % (diskName,space))
+      elif space > int(self.actor.seriousDiskSpace):
+          cmd.inform('%sDiskAlarm=Warning,%d' % (diskName,space))
+      elif space > int(self.actor.criticalDiskSpace):
+          cmd.warn('%sDiskAlarm=Serious,%d' % (diskName,space))
+      else:
+          cmd.warn('%sDiskAlarm=Critical,%d' % (diskName,space))
+   #...
+
    def checkDisks(self, cmd=None):
-      '''Report full status'''
+      '''Report disk space remaining on ICS, QL and Arch.'''
       if not cmd:
          cmd = self.actor.bcast
 
@@ -80,31 +92,14 @@ class apogeeqlCmd(object):
 
       cmd.inform('freeDiskSpace=%d,%d,%d' % (icsSpace, qlSpace, archSpace))
 
-      if icsSpace > int(self.actor.seriousDiskSpace):
-          cmd.inform('icsDiskAlarm=Ok,%d' % (icsSpace))
-      elif icsSpace > int(self.actor.criticalDiskSpace):
-          cmd.warn('icsDiskAlarm=Serious,%d' % (icsSpace))
-      else:
-          cmd.warn('icsDiskAlarm=Critical,%d' % (icsSpace))
-
-      if qlSpace > int(self.actor.seriousDiskSpace):
-          cmd.inform('qlDiskAlarm=Ok,%d' % (qlSpace))
-      elif qlSpace > int(self.actor.criticalDiskSpace):
-          cmd.warn('qlDiskAlarm=Serious,%d' % (qlSpace))
-      else:
-          cmd.warn('qlDiskAlarm=Critical,%d' % (qlSpace))
-
-      if archSpace > int(self.actor.seriousDiskSpace):
-          cmd.inform('archDiskAlarm=Ok,%d' % (archSpace))
-      elif archSpace > int(self.actor.criticalDiskSpace):
-          cmd.warn('archDiskAlarm=Serious,%d' % (archSpace))
-      else:
-          cmd.warn('archDiskAlarm=Critical,%d' % (archSpace))
+      self._checkDisk(icsSpace,'ics')
+      self._checkDisk(qlSpace,'ql')
+      self._checkDisk(archSpace,'arch')
 
       cmd.finish()
 
    def startIDL(self, cmd):
-      '''Start a new IDL quicklook process'''
+      '''Start a new IDL quicklook process.'''
       if not cmd:
          cmd = self.actor.bcast
 
@@ -116,7 +111,7 @@ class apogeeqlCmd(object):
       cmd.finish()
 
    def stopIDL(self, cmd):
-      '''Stop the currently running IDL quicklook process if it exists'''
+      '''Stop the currently running IDL quicklook process if it exists.'''
       if not cmd:
          cmd = self.actor.bcast
 
@@ -132,14 +127,14 @@ class apogeeqlCmd(object):
       cmd.finish()
 
    def doSomething(self, cmd):
-      """ Do something pointless. """
+      """ Do something pointless. (for testing) """
       cnt = cmd.cmd.keywords["count"].values[0]
       for i in range(cnt):
          cmd.inform('cnt=%d' % (i))
       cmd.finish()
 
    def quicklook(self, cmd):
-      """ command is addressed to the IDL quicklook process"""
+      """ Send a command to the IDL quicklook process."""
       cmdString = cmd.cmd.keywords["cmd"].values[0]
       # pass the command string to the socket to quicklook_main.pro
       # print cmdString
