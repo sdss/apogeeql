@@ -47,7 +47,7 @@ class apogeeqlCmd(object):
       self.doStatus(cmd, flushCache=True)
 
    def update(self, cmd):
-      '''Report status and version; obtain and send current data'''
+      '''Report status'''
       self.doStatus(cmd=cmd)
 
    def doStatus(self, cmd=None, flushCache=False, doFinish=True):
@@ -64,7 +64,7 @@ class apogeeqlCmd(object):
       # cmd.diag('text="still nothing to say"')
       cmd.finish()
 
-   def _checkDisk(self,space,diskName):
+   def _checkDisk(self,cmd,space,diskName):
       '''Send appropriate keyword message about current space remaining on diskName.'''
       if space > int(self.actor.warningDiskSpace):
           cmd.inform('%sDiskAlarm=Ok,%d' % (diskName,space))
@@ -92,9 +92,9 @@ class apogeeqlCmd(object):
 
       cmd.inform('freeDiskSpace=%d,%d,%d' % (icsSpace, qlSpace, archSpace))
 
-      self._checkDisk(icsSpace,'ics')
-      self._checkDisk(qlSpace,'ql')
-      self._checkDisk(archSpace,'arch')
+      self._checkDisk(cmd,icsSpace,'ics')
+      self._checkDisk(cmd,qlSpace,'ql')
+      self._checkDisk(cmd,archSpace,'arch')
 
       cmd.finish()
 
