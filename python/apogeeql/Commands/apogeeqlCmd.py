@@ -69,7 +69,7 @@ class apogeeqlCmd(object):
       if space > int(self.actor.warningDiskSpace):
           cmd.inform('%sDiskAlarm=Ok,%d' % (diskName,space))
       elif space > int(self.actor.seriousDiskSpace):
-          cmd.inform('%sDiskAlarm=Warning,%d' % (diskName,space))
+          cmd.warn('%sDiskAlarm=Warning,%d' % (diskName,space))
       elif space > int(self.actor.criticalDiskSpace):
           cmd.warn('%sDiskAlarm=Serious,%d' % (diskName,space))
       else:
