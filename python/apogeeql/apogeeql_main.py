@@ -419,8 +419,13 @@ class Apogeeql(actorcore.Actor.Actor):
       if readnum == 1 or Apogeeql.exp_pk == 0:
          # get the corresponding platedb.observation.pk (creating a new one if necessary)
          survey = Apogeeql.actor.mysession.query(Survey).join(PlateToSurvey).join(Plate).filter(Plate.plate_id==Apogeeql.prevPlate)
-
-         Apogeeql.obs_pk = Apogeeql.actor.getObservationPk(mjd)
+         
+         try:
+             Apogeeql.obs_pk = Apogeeql.actor.getObservationPk(mjd)
+         except InvalidRequestError as e:
+             Apogeeql.actor.logger.error('Failed to call getObservationPk for %d'%mjd)
+             Apogeeql.actor.logger.error('Exception: %s'%e)
+             raise e
 
          # insert a new entry in the platedb.exposure table (one per UTR exposure)
          Apogeeql.exp_pk = Apogeeql.actor.getExposurePk(Apogeeql.obs_pk, expnum, starttime, exptime)
