@@ -299,7 +299,8 @@ class Apogeeql(actorcore.Actor.Actor):
 
          # routine returns a yanny par file
          # replace plPlugMapM-xxxx by plPlugMapA-xxxx
-         fname = pm.filename
+         # str() to convert from unicode, as twisted can't take it.
+         fname = str(pm.filename)
          p = fname.find('MapM')
          fname  = os.path.join(Apogeeql.actor.plugmap_dir,fname[0:p+3]+'A'+fname[p+4:])
 
