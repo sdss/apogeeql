@@ -694,7 +694,7 @@ class Apogeeql(actorcore.Actor.Actor):
               cs_comment = line[33:80]
 
       f.close()
-      hdulist = pyfits.open(filename, uint16=True)
+      hdulist = pyfits.open(filename, do_not_scale_image_data=True)
       if checksum != None:
           # validate the value of the checksum found (corresponding to DATASUM in pyfits)
           # calulate the datasum
