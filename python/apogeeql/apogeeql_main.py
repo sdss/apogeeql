@@ -694,7 +694,8 @@ class Apogeeql(actorcore.Actor.Actor):
               cs_comment = line[33:80]
 
       f.close()
-      hdulist = pyfits.open(filename, do_not_scale_image_data=True)
+      # don't touch the data, which is supposed to be uint16s.
+      hdulist = pyfits.open(filename, do_not_scale_image_data=True, uint16=True)
       if checksum != None:
           # validate the value of the checksum found (corresponding to DATASUM in pyfits)
           # calulate the datasum
@@ -713,12 +714,20 @@ class Apogeeql(actorcore.Actor.Actor):
               f.write(filename+'\n')
               f.close()
 
-
+      # force these to be ints:
+      # As of August 2013, the ICS writes them both as floats, but the
+      # FITS standard wants them to be ints.
+      bscale = int(hdulist[0].header.get('BSCALE',1))
+      bzero = int(hdulist[0].header.get('BZERO',32768))
+      del hdulist[0].header['BSCALE']
+      del hdulist[0].header['BZERO']
+      hdulist[0].header.update('BSCALE',bscale,after='GCOUNT')
+      hdulist[0].header.update('BZERO',bzero,after='BSCALE')
+      
       hdulist[0].header.update('TELESCOP' , 'SDSS 2-5m')
       hdulist[0].header.update('FILENAME' ,outFile)
       hdulist[0].header.update('EXPTYPE' ,self.expType)
-
-
+      
       # get the calibration box status
       lampqrtz, lampune, lampthar, lampshtr, lampcntl = self.getCalibBoxStatus()
       hdulist[0].header.update('LAMPQRTZ',lampqrtz, 'CalBox Quartz Lamp Status')
