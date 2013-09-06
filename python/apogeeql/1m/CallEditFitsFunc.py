@@ -63,12 +63,12 @@ def movefits(CurrentFileName,DayNumber,current_obs_ra,current_obs_dec,current_ob
         # force these to be ints:
         # As of August 2013, the ICS writes them both as floats, but the
         # FITS standard wants them to be ints.
-        bscale = int(hdulist[0].header.get('BSCALE',1))
-        bzero = int(hdulist[0].header.get('BZERO',32768))
-        del hdulist[0].header['BSCALE']
-        del hdulist[0].header['BZERO']
-        hdulist[0].header.update('BSCALE',bscale,after='GCOUNT')
-        hdulist[0].header.update('BZERO',bzero,after='BSCALE')
+        bscale = int(img[0].header.get('BSCALE',1))
+        bzero = int(img[0].header.get('BZERO',32768))
+        del img[0].header['BSCALE']
+        del img[0].header['BZERO']
+        img[0].header.update('BSCALE',bscale,after='GCOUNT')
+        img[0].header.update('BZERO',bzero,after='BSCALE')
 
         strp = re.sub('.fits',"",CurrentFileName) # strip .fits of file name
         new  = strp + '.fits' # add edit.fits to file name
