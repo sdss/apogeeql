@@ -1,6 +1,7 @@
 * text=auto !eol
 bin/apogee1m -text
 bin/apogeeql -text
+bin/fix_missing_bzero.py -text
 bin/plugmapm2a.py -text
 bin/talk2ql.py -text
 etc/apogeeql.cfg -text
