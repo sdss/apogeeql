@@ -86,7 +86,6 @@ def main(argv=None):
     
     if len(args) == 0:
         print "Need at least one directory as an argument."
-        print usage
         sys.exit(-1)
     for directory in args:
         print "Processing:",directory
