@@ -12,6 +12,13 @@ import pyfits
 
 suffix = 'badheaders'
 
+def get_yes(text):
+    getOk = raw_input(text)
+    if not getOk.lower().startswith("y"):
+        return False
+    else:
+        return True
+
 def fix_header(hdulist):
     """
     Replace the missing BZERO/BSCALE values in the header,
@@ -25,31 +32,39 @@ def fix_header(hdulist):
     hdulist[0].header.update('BZERO',bzero,after='BSCALE')
     return hdulist
 
-def fix_headers(files,moved,force=False):
-    """Fix the headers of moved, writing them to files."""
-    for f,m in zip(files,moved):
-        print "Fixing header: %s -> %s"%(m,f)
-        if not force: m = f
-        hdulist = pyfits.open(m,uint16=True,do_not_scale_image_data=True,checksum=True)
+def fix_file(oldfile,newfile,force=False):
+    """Fix the headers of oldfile, writing them to newfile."""
+    pre = '' if force else '(NOT) '
+    print "%sFixing header: %s -> %s"%(pre,oldfile,newfile)
+    if not force: oldfile = newfile
+    if force:
+        hdulist = pyfits.open(oldfile,uint16=True,do_not_scale_image_data=True,checksum=True)
         hdulist = fix_header(hdulist)
-        if force:
-            hdulist.writeto(f,clobber=False,output_verify='warn',checksum=True)
-            os.chmod(f,0o444)
+        hdulist.writeto(newfile,clobber=False,output_verify='warn',checksum=True)
+        os.chmod(newfile,0o444)
 
-def move_files(files,force=False):
-    """Move files to FILEDIR/badheaders/."""
-    newdir = os.path.join(os.path.split(files[0])[0],suffix)
-    moved = []
+def move_file(file,force=False):
+    """Move file to FILEDIR/badheaders/."""
+    pre = '' if force else '(NOT) '
+    newdir = os.path.join(os.path.split(file)[0],suffix)
     if not os.path.exists(newdir):
         os.mkdir(newdir)
-    for f in files:
-        newfile = os.path.join(newdir,os.path.split(f)[-1])
-        print "Moving: %s -> %s"%(f,newfile)
-        if force:
-            os.rename(f,newfile)
-            os.chmod(newfile,0o444)
-        moved.append(newfile)
-    return moved
+    newfile = os.path.join(newdir,os.path.split(file)[-1])
+    print "%sMoving: %s -> %s"%(pre,file,newfile)
+    if force:
+        os.rename(file,newfile)
+        os.chmod(newfile,0o444)
+    return newfile
+
+def fix_files(files,force=False):
+    """Fix the files, asking about each one unless force is set."""
+    for file in files:
+        if not force:
+            forceThis = get_yes("Process %s y/[n]? "%file)
+        else:
+            forceThis = True
+        moved = move_file(file,forceThis)
+        fix_file(moved,file,forceThis)
 
 def main(argv=None):
     from optparse import OptionParser
@@ -58,19 +73,17 @@ def main(argv=None):
     usage = "%prog [OPTIONS] DIR1 [DIR2 [DIR3 [...]]]"
     usage += "\n\nRepair BZERO/BSCALE headers in the apRaw files in DIR, after"
     usage += "\nmoving them to a backup directory."
-    usage += "\nJust print, don't do it, unless -f is specified."
+    usage += "\nRequest permission to process each file, unless -f is specified."
     usage += "\n\nDIR example (on apogee-ql): /data-ql/data/56535"
     parser = OptionParser(usage)
-    parser.add_option('-f','--force',dest='force',action='store_true',default=False,
-                      help='Actually move and fix the files (%default).')
+    parser.add_option('--yes',dest='yes',action='store_true',default=False,
+                      help='Process all the files in a directory without asking (%default).')
     (opts,args) = parser.parse_args(args=argv)
     
-    if opts.force and getpass.getuser() != 'sdss3' and 'apogee-ql' not in socket.gethostname():
-        print "If 'force', we must be run as sdss3@apogee-ql!"
-        sys.exit(-2)
+    #if opts.yes and getpass.getuser() != 'sdss3' and 'apogee-ql' not in socket.gethostname():
+    #    print "If 'yes', we must be run as sdss3@apogee-ql!"
+    #    sys.exit(-2)
     
-    if not opts.force:
-        print "NOT DOING ANYTHING, JUST PRINTING."
     if len(args) == 0:
         print "Need at least one directory as an argument."
         print usage
@@ -78,8 +91,7 @@ def main(argv=None):
     for directory in args:
         print "Processing:",directory
         files = sorted(glob.glob(os.path.join(directory,'apRaw*.fits')))
-        moved = move_files(files,opts.force)
-        fix_headers(files,moved,opts.force)
+        fix_files(files,opts.yes)
 
 if __name__ == "__main__":
     main()
