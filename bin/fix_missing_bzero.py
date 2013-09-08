@@ -56,9 +56,19 @@ def move_file(file,force=False):
         os.chmod(newfile,0o444)
     return newfile
 
+def file_is_ok(file):
+    """Return True if file already has BZERO in its header."""
+    if pyfits.getheader(file).get('BZERO',None):
+        print "%s already has BZERO. Not processing."%file
+        return True
+    else:
+        return False
+
 def fix_files(files,force=False):
     """Fix the files, asking about each one unless force is set."""
     for file in files:
+        if file_is_ok(file):
+            continue
         if not force:
             forceThis = get_yes("Process %s y/[n]? "%file)
         else:
