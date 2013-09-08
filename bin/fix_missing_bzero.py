@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 To fix the files in MJD 56532-56540 where the bzero field wasn't written
 during the annotation, due to the pyfits 2.4->3.1 change.
@@ -33,7 +34,7 @@ def fix_headers(files,moved,force=False):
         hdulist = fix_header(hdulist)
         if force:
             hdulist.writeto(f,clobber=False,output_verify='warn',checksum=True)
-            os.fchmod(f,0o444)
+            os.chmod(f,0o444)
 
 def move_files(files,force=False):
     """Move files to FILEDIR/badheaders/."""
@@ -46,8 +47,9 @@ def move_files(files,force=False):
         print "Moving: %s -> %s"%(f,newfile)
         if force:
             os.rename(f,newfile)
-            os.fchmod(newfile,0o444)
+            os.chmod(newfile,0o444)
         moved.append(newfile)
+    return moved
 
 def main(argv=None):
     from optparse import OptionParser
@@ -63,18 +65,20 @@ def main(argv=None):
                       help='Actually move and fix the files (%default).')
     (opts,args) = parser.parse_args(args=argv)
     
-    if force and getpass.getuser() != 'sdss3' and 'apogee-ql' not in socket.gethostname():
+    if opts.force and getpass.getuser() != 'sdss3' and 'apogee-ql' not in socket.gethostname():
         print "If 'force', we must be run as sdss3@apogee-ql!"
         sys.exit(-2)
     
+    if not opts.force:
+        print "NOT DOING ANYTHING, JUST PRINTING."
     if len(args) == 0:
         print "Need at least one directory as an argument."
         print usage
         sys.exit(-1)
     for directory in args:
         print "Processing:",directory
-        files = glob.glob(directory)
-        moved = move_files(files,ops.force)
+        files = sorted(glob.glob(os.path.join(directory,'apRaw*.fits')))
+        moved = move_files(files,opts.force)
         fix_headers(files,moved,opts.force)
 
 if __name__ == "__main__":
