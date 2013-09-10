@@ -778,6 +778,7 @@ class Apogeeql(actorcore.Actor.Actor):
       # repair (if possible) any problems with the header (mainly OBSCMNT too long)
       hdulist.verify('fix')
       hdulist.writeto(outFile, clobber=True, output_verify='warn', checksum=True)
+      os.chmod(outFile,0o444) # all read only
       return outFile, starttime, exptime
 
 
