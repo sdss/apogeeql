@@ -1,0 +1,228 @@
+#!/usr/bin/env python
+"""
+Search a list of apogee files in mjd directory
+
+list_ap1  (for current mjd)
+list_ap1 -m  <mjd>  (for other mjd)
+   (for example: list_ap1 -m  56462)
+
+History:
+06/22/2013  EM: 1st release 
+06/25/2013  EM: fixed mjd calulation
+06/26/2013  EM: added type of lamps for arcs
+
+---------------
+09/09/2013: EM added relative position of spectral line
+ print "offset: THAR Arc reference: mjd=56529, A-09670004 44.0 pix, B-09670006 44.5 pix"
+ resuts: 
+ list_ap2.py -m  56494  ( before  summer shakedown):
+4 00:17  09320004  ArcLamp (thar) 12  A   11-6306   a-b-c  -1.01   None
+6 00:26  09320006  ArcLamp (thar) 12  B   11-6306   a-b-c  -1.05   None
+
+ list_ap2.py -m  56529  ( reference) 
+4 05:36  09670004  ArcLamp (thar) 12  A   11-6592   a-b-c  -0.00   None
+6 05:45  09670006  ArcLamp (thar) 12  B   11-6592   a-b-c  -0.00   None
+
+ list_ap2.py -m  56545  ( reference) 
+3 22:34  09830003  ArcLamp (thar) 12  A   10-6289   a-b-c  -0.03   None
+5 22:43  09830005  ArcLamp (thar) 12  B   10-6289   a-b-c  -0.03   None
+-----------      
+      
+"""
+import glob
+#import pyfits ##as pf
+import pyfits, numpy, scipy
+import sys, os.path
+import argparse
+import datetime as dt
+import time
+
+def base60_to_decimal(xyz,delimiter=None):
+  divisors = [1,60.0,3600.0]
+  xyzlist = str(xyz).split(delimiter)
+  sign = -1 if xyzlist[0].find("-") != -1 else 1
+  xyzlist = [abs(float(x)) for x in xyzlist]
+  decimal_value = 0 
+# if xyzlist has <3 values then divisors gets clipped.
+  for i,j in zip(xyzlist,divisors): 
+      decimal_value += i/j
+  decimal_value = -decimal_value if sign == -1 else decimal_value
+  return decimal_value
+
+def julian_date(dt):
+  import math 
+  MJD0 = 2400000.5 # 1858 November 17, 00:00:00 hours   
+  year, month, day, hour, minute, second  =\
+  int(dt.year),int(dt.month),int(dt.day),int(dt.hour),int(dt.minute), dt.second
+  if month <= 2:
+    month +=12;  year -= 1 
+
+  modf = math.modf
+  # Julian calendar on or before 1582 October 4 and Gregorian calendar afterwards.
+  if ((10000L*year+100L*month+day) <= 15821004L):
+    b = -2 + int(modf((year+4716)/4)[1]) - 1179
+  else:
+    b = int(modf(year/400)[1])-int(modf(year/100)[1])+int(modf(year/4)[1]) 
+  mjdmidnight = 365L*year - 679004L + b + int(30.6001*(month+1)) + day
+
+  fracofday = base60_to_decimal(" ".join([str(hour),str(minute),str(second)])) / 24.0 
+  return MJD0 + mjdmidnight + fracofday
+  
+def jd_to_mjd(jd):
+ #   Convert Julian Day to Modified Julian Day
+     mjd=jd - 2400000.5
+     return jd +0.3 #  sdss      
+
+#
+def getSpe(data, l1,l2): 
+  sz1=data.shape 
+  def ds9topy(p):  return [p[1],p[0]]
+  p1=[0,l1];  p1conv=ds9topy(p1)
+  p2=[sz1[1], l2];  p2conv=ds9topy(p2)
+  dat1=data[p1conv[0]:p2conv[0],:]  # select lime of spectra
+  spe=numpy.average(dat1, axis=0)    # average all spectra in that line
+  return spe
+#...
+def getOffset(f):
+    import scipy.optimize
+    offset="--"
+    if os.path.exists(f):
+      hdulist=pyfits.open(f,'readonly')
+      hdr = hdulist[0].header
+      data=hdulist[0].data
+      dth=float(hdr['DITHPIX'])
+      hdulist.close()
+      spe= getSpe(data,1200, 1500) # select swap ad average to one spectrum
+      if dth==12.994:  dthval=44.00
+      elif dth==13.499:  dthval=44.53
+      else: 
+         dthval=0.0
+         print "something wrong in header with DITHPIX value "
+
+# 09670004  A  12.99  0.00   35479   95    44.00   1.01    2.33 -0.01   56529
+# 09670006  B  13.50  0.51   36691   98    44.53   1.54    2.28 -0.06   56529
+# A 12.99  43.9994090029
+# B 13.50  44.5297956766
+# values for ticket testing 
+#  p0 = scipy.c_[37083, 42.986, 2.339]  # start fitting params
+      
+      p0 = scipy.c_[37083, dthval, 2.339]  # start fitting params
+      pix=scipy.linspace(0, spe.shape[0], num=spe.shape[0])
+      fitfunc = lambda p0, x: p0[0]*scipy.exp(-(x-p0[1])**2/(2.0*p0[2]**2))
+      errfunc = lambda p, x, y: fitfunc(p,x)-y
+      p1, success = scipy.optimize.leastsq(errfunc, p0.copy()[0],args=(pix,spe))
+      if  success: 
+         p1= p1[1] 
+         p0=p0[0][1] 
+         offset="%5.2f" % (p1- p0)
+      else:     
+          offset="??" 
+    return  offset 
+   
+def  list_one_file(i,f,mjd):
+    qrfile="/data/apogee/quickred/%s/ap2D-a-%s.fits.fz" % (mjd,f[33:41])
+    fop=f
+    if os.path.exists(qrfile):  fop=qrfile
+    hdulist=pyfits.open(fop,'readonly')
+    hdr = hdulist[0].header
+    hdulist.close()
+    
+    ct=hdr.get('CARTID');  plate=hdr.get('PLATEID')  
+    if ct == None: ct="--" 
+    if plate==None: plate="----"
+
+    imtype= hdr.get('IMAGETYP')
+    offset="-"
+    if imtype=="ArcLamp":
+        if hdr.get('LAMPUNE')==1:
+           imtype=imtype+" (une)"
+        if hdr.get('LAMPTHAR')==1:
+           imtype=imtype+" (thar)"
+      #     offset=getOffset(f)
+           
+    imtype=imtype.center(14)
+#    une=hdr.get('LAMPUNE') 
+#    thar=hdr.get('LAMPTHAR')
+#    qrtz=hdr.get('LAMPQRTZ')
+     
+    dth= float(hdr['DITHPIX'])
+    if dth==12.994: sdth="A"
+    elif dth==13.499: sdth="B"
+    else: sdth=string(dth)    
+    
+    ss1="%3i "% (i+1)  #i
+    ss1=ss1+"%s  " % (hdr['DATE-OBS'][11:16]) # UT time
+    ss1=ss1+"%s  " % (f[33:41])  # exp number
+    ss1=ss1+"%s " % (imtype)  # image type
+    ss1=ss1+"%2i  " %  hdr.get('NFRAMES')  # nframes
+    ss1=ss1+"%s  " % (sdth)  # dither            
+    ss1=ss1+" %2s-%4s   " % (ct, plate)
+
+    arcA="/data/apogee/archive/%s/apR-%s-%s.apz"%(mjd,"a",f[33:41])
+    arcB="/data/apogee/archive/%s/apR-%s-%s.apz"%(mjd,"b",f[33:41])
+    arcC="/data/apogee/archive/%s/apR-%s-%s.apz"%(mjd,"c",f[33:41])    
+    arc=list("x-x-x")
+    if os.path.exists(arcA): arc[0]="a" 
+    if os.path.exists(arcB): arc[2]="b" 
+    if os.path.exists(arcC): arc[4]="c" 
+    ss1=ss1+"%s  "%"".join(arc)    # archive file existence
+
+ #   ss1=ss1+"%5s   " % (offset)  # offset 
+
+    ss1=ss1+ "%s" % hdr["OBSCMNT"][0:20]  # comment       
+     
+    print ss1
+#...
+
+if __name__ == "__main__":
+   # now=dt.datetime.now()
+   # jd=julian_date(now)
+   # sjd=jd_to_mjd(jd)
+   # print "1: ", sjd
+    
+    TAI_UTC =34
+    sjd1=(time.time() + TAI_UTC) / 86400.0 + 40587.3
+    sjd= int (sjd1)
+        
+    desc = 'apogee file list for one mjd'
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument('-m', '--mjd', 
+           help='enter mjd, default is current mjd=%s' % int(sjd),
+           default=int(sjd), type=int)
+    args = parser.parse_args()    
+    mjd=args.mjd
+    
+    pp="/data/apogee/utr_cdr/"
+    fNames="%s%s/apRaw-%s.fits"%(pp,mjd,"*")
+    print "raw_data: ", fNames
+
+    ppqr="/data/apogee/quickred/%s/ap2D-a-*.fits.fz" % (mjd)
+    print "quick_red:", ppqr
+    
+    pparc="/data/apogee/archive/%s/apR-[a,b,c]-*.apz" % (mjd)
+    print "archive:  ", pparc
+    
+#    print "Offset: THAR Arc reference: mjd=56529, A-09670004 x_LineCenter=44.0 pix, "
+#    print "                                       B-09670006 x_LineCenter=44.5 pix"
+   
+    files = glob.glob(fNames)
+    
+    line="-"*80
+    print line
+ #   ss=" i   UT   File/Exp   Imtype     Nread Dth  Ct-Plate Archiv  Offset Comment"
+    ss=" i   UT   File/Exp   Imtype     Nread Dth  Ct-Plate  Archiv  Comment"
+    print ss  
+    print line 
+    nfiles=len(files)
+    if nfiles==0: 
+        print " - no files found -- " 
+    else: 
+        for i,f in enumerate(sorted(files)):
+             list_one_file(i,f, mjd) 
+    print line
+#...
+
+#http://apwlib.googlecode.com/hg/apwlib/astrodatetime.py
+# mjd from Adrian
+# just python for astronomers
+# http://home.fnal.gov/~neilsen/notebook/pythonForDervishUsers.html

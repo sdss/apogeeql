@@ -1,8 +1,14 @@
 * text=auto !eol
+bin/apRaw-03720068.fits -text svneol=unset#unset
 bin/apogee1m -text
+bin/apogeeThar.py -text
+bin/apogeeTharPlot.py -text
 bin/apogeeql -text
+bin/aptest -text
 bin/fix_missing_bzero.py -text
+bin/list_ap1 -text
 bin/plugmapm2a.py -text
+bin/readme.txt -text
 bin/talk2ql.py -text
 etc/apogeeql.cfg -text
 python/apogeeql/1m/CallEditFitsFunc.py -text
