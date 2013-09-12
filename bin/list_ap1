@@ -2,19 +2,62 @@
 """
 Search a list of apogee files in mjd directory
 
+usage:  
+list_ap1 <-m mjd> <-h>
+
+mjd default - current
+
+examples: 
+
 list_ap1  (for current mjd)
-list_ap1 -m  <mjd>  (for other mjd)
-   (for example: list_ap1 -m  56462)
+list_ap1 -m  56462
 
 History:
 06/22/2013  EM: 1st release 
 06/25/2013  EM: fixed mjd calulation
 06/26/2013  EM: added type of lamps for arcs
+09/08/2013  EM:  progress to add spectral line position to monitor dither
+     I use bright line in Thar but need to check if it is safe to use it. 
+     testing stage. 
+09/11/2013  EM: checked to apogee-ql/bin 
 
----------------
-09/09/2013: EM added relative position of spectral line
- print "offset: THAR Arc reference: mjd=56529, A-09670004 44.0 pix, B-09670006 44.5 pix"
- resuts: 
+
+Expected output: 
+[observer@sos3 ~]$ list_ap1 -m 56546
+raw_data:  /data/apogee/utr_cdr/56546/apRaw-*.fits
+quick_red: /data/apogee/quickred/56546/ap2D-a-*.fits.fz
+archive:   /data/apogee/archive/56546/apR-[a,b,c]-*.apz
+--------------------------------------------------------------------------------
+ i   UT   File/Exp   Imtype     Nread Dth  Ct-Plate  Archiv  Comment
+--------------------------------------------------------------------------------
+  1 22:08  09840001       Dark      60  A   10-6289   a-b-c  None
+  2 22:19  09840002    QuartzFlat   10  A   10-6289   a-b-c  None
+  3 22:21  09840003  ArcLamp (thar) 12  A   10-6289   a-b-c  None
+  4 22:23  09840004  ArcLamp (une)  40  A   10-6289   a-b-c  None
+  5 22:30  09840005  ArcLamp (thar) 12  B   10-6289   a-b-c  None
+  6 22:32  09840006  ArcLamp (une)  40  B   10-6289   a-b-c  None
+  7 22:40  09840007       Dark      60  A   10-6289   a-b-c  None
+  8 10:27  09840008       Dark      60  A   10-6289   a-b-c  None
+  9 10:38  09840009       Dark      60  A   10-6289   a-b-c  None
+ 10 10:48  09840010       Dark      60  A   10-6289   a-b-c  None
+ 11 10:59  09840011    QuartzFlat   10  A   10-6289   a-b-c  None
+ 12 11:01  09840012    QuartzFlat   10  A   10-6289   a-b-c  None
+ 13 11:03  09840013    QuartzFlat   10  A   10-6289   a-b-c  None
+ 14 11:05  09840014  ArcLamp (thar) 12  A   10-6289   a-b-c  None
+ 15 11:07  09840015  ArcLamp (une)  40  A   10-6289   a-b-c  None
+ 16 11:14  09840016  ArcLamp (thar) 12  B   10-6289   a-b-c  None
+ 17 11:16  09840017  ArcLamp (une)  40  B   10-6289   a-b-c  None
+ 18 11:24  09840018       Dark      30  A   10-6289   a-b-c  None
+ 19 11:29  09840019   InternalFlat  30  A   10-6289   a-b-c  None
+ 20 11:34  09840020   InternalFlat  30  A   10-6289   a-b-c  None
+ 21 11:40  09840021   InternalFlat  30  A   10-6289   a-b-c  None
+ 22 11:45  09840022       Dark      30  A   10-6289   a-b-c  None
+--------------------------------------------------------------------------------
+
+09/09/2013: EM in progress to adding relative position of spectral line
+printing referecne  line: 
+ "offset: THAR Arc reference: mjd=56529, A-09670004 44.0 pix, B-09670006 44.5 pix"
+ 
  list_ap2.py -m  56494  ( before  summer shakedown):
 4 00:17  09320004  ArcLamp (thar) 12  A   11-6306   a-b-c  -1.01   None
 6 00:26  09320006  ArcLamp (thar) 12  B   11-6306   a-b-c  -1.05   None
@@ -26,7 +69,6 @@ History:
  list_ap2.py -m  56545  ( reference) 
 3 22:34  09830003  ArcLamp (thar) 12  A   10-6289   a-b-c  -0.03   None
 5 22:43  09830005  ArcLamp (thar) 12  B   10-6289   a-b-c  -0.03   None
------------      
       
 """
 import glob
