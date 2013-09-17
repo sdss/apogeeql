@@ -8,44 +8,40 @@ relative to reference data apRaw-09000004.fits fitting.
  
 EM 09/01/2013
 Usage:  ./apogeeThar.py <-m1 "start mjd"> <-m2 enf mjd > 
-the output might be redirected to file   
-
-Example:
-
-# ./apogeeThar.py -m1 56264 -m2 56541 > apogeeThar.outfile
-# Master exposure path = /data/apogee/utr_cdr/56462/apRaw-09000004.fits
-# Spectral line fitting:
-#---------------------------------------------------------------------------
-#  file   A/B   D    D-Do    I    I/Io,%    X    X-Xo     W    W-Wo   mjd
-#---------------------------------------------------------------------------
-# master   A  12.99         37083  100    42.99          2.34         56462
-#---------------------------------------------------------------------------
-#---------------------------------------------------------------------------
- 08380009  A  12.99  0.00   36992   99    43.56   0.57    2.30 -0.04   56400
- 08380011  B  13.50  0.51   37198  100    44.06   1.07    2.29 -0.05   56400
- 08380029  A  12.99  0.00   37619  101    43.55   0.56    2.24 -0.09   56400
- 08380031  B  13.50  0.51   37615  101    44.05   1.06    2.24 -0.10   56400
-#---------------------------------------------------------------------------
- 08390004  A  12.99  0.00   37523  101    43.55   0.57    2.29 -0.05   56401
- 08390006  B  13.50  0.51   37576  101    44.06   1.07    2.29 -0.05   56401
- 08390058  A  12.99  0.00   37785  101    43.57   0.59    2.27 -0.07   56401
- 08390060  B  13.50  0.51   37892  102    44.08   1.09    2.27 -0.07   56401
-#---------------------------------------------------------------------------
+    the output might be redirected to file   
 
 History: 
 09/11/2013: EM added to apogeeql svn bin repository
 
-'''
+09/16/2013: EM reference changed to the first completed set of calibration after 
+2013 summer shakedown,  mjd=56531, Aug 26,2013, ff=09690003, 09690005, 09690014, 09690016
 
+example:
+ ./apogeeThar.py -m1 56531
+ 
+ check from 06/01/2013  (56445)  - 09/01/2013  (56537)
+ ./apogeeThar.py -m1 56445  -m2 56537
+ 
+ '''
 import argparse
 import pyfits, numpy, scipy
 from pylab import *
 import scipy.optimize
 import sys, os.path, glob
+import time
+
+#  Constants
+dthM= 12.994
 
 pathData="/data/apogee/utr_cdr/"
-masterFile="09000004"
-dthM= 12.994
+mjdMaster="56531"
+masterFile="09690003";
+masterPath="%s%s/apRaw-%s.fits" % (pathData, mjdMaster,masterFile)
+
+# define a gaussian fitting function where, 
+# p0[0] = amplitude, p0[1] = center, p0[2] = fwhm
+p0 = scipy.c_[36750, 44.004, 2.29]  # initial fitting params   for mjd=56531
+#---------
 
 def getFullName(ff):
   ss="apRaw-%s.fits" % ff
@@ -121,25 +117,21 @@ def checkOneMjd(mjd):
 
       # fit gaussian function
       pix=scipy.linspace(0, spe.shape[0], num=spe.shape[0])
-      # define a gaussian fitting function where, 
-      # p0[0] = amplitude, p0[1] = center, p0[2] = fwhm
       fitfunc = lambda p0, x: p0[0]*scipy.exp(-(x-p0[1])**2/(2.0*p0[2]**2))
       errfunc = lambda p, x, y: fitfunc(p,x)-y
-      #  p0 = scipy.c_[37083, 42.986, 2.339]  # start fitting params
       p1, success = scipy.optimize.leastsq(errfunc, p0.copy()[0],args=(pix,spe))
 
       # print the result of fitting  
       if success==1:
          dth=float(hdr['DITHPIX'])
-         print p1[1] 
+     #    print p1[0],p1[1], p1[2] 
          offset=p1[1] - p0[0][1]
-         ff1=ff[33:41]  # /data/apogee/utr_cdr/56462/apRaw-09000024
+         ff1=ff[33:41]  
          mm=ff[21:26]
          intrel=(p1[0]/p0[0][0])*100
          widthrel=(p1[2] - p0[0][2])
          print " %8s  %s  %5.2f  %4.2f %7i  %3i    %5.2f  %5.2f    %4.2f %5.2f   %5s" % \
-             (ff1, sdth(dth), dth,  dth-dthM, p1[0], intrel,  p1[1], \
-             offset, p1[2], widthrel, mm)
+             (ff1, sdth(dth), dth,  dth-dthM, p1[0], intrel,  p1[1], offset, p1[2], widthrel, mm)
       else: 
            print "Fitting was not successful, success code =",success 
   return
@@ -147,37 +139,39 @@ def checkOneMjd(mjd):
   
 if __name__ == "__main__":
 
+# mjd
+  TAI_UTC =34; sjd1=(time.time() + TAI_UTC) / 86400.0 + 40587.3;  sjd= int (sjd1)
+
   desc = 'apogee arc Thar check'
   parser = argparse.ArgumentParser(description=desc)
 #  parser.add_argument('-f', '--datafile', help='enter filename')
-  parser.add_argument('-m1', '--mjd1', help='enter mjd1 - start, or just one night', type=int)
+  parser.add_argument('-m1', '--mjd1', help='enter mjd1 - start, or just one night', \
+       default=sjd,  type=int)
+       
   parser.add_argument('-m2', '--mjd2',  help='enter mjd2 - end', type=int)
   args = parser.parse_args()    
   mjd1=args.mjd1
   mjd2=args.mjd2
+  
+  #if mjd1==None:  mjd1=sjd
+  #sys.exit("mjd1 is not set, exit")
   if mjd2==None:  mjd2=mjd1
   mjds=range(mjd1, mjd2+1)
-
   
 # print master fitting parameners  
-  print "# ./apogeeThar.py -m1 %s -m2 %s > apogeeThar.txt" % (mjd1, mjd2)
-  print "# Master exposure path = %s" %  "/data/apogee/utr_cdr/56462/apRaw-09000004.fits" 
-  print "# Spectral line fitting:"  
-  kl=75 
-  print "#%s" % ("-"*kl)
-  prc="%s" % ("%")
-  header= "#  file   A/B   D    D-Do    I    I/Io,%    X    X-Xo     W    W-Wo   mjd"
+  print "# ./apogeeThar.py -m1 %s -m2 %s > apogeeThar.outfile" % (mjd1, mjd2)
+  
+  print "# Master exposure path = %s" %  (masterPath)
+  kl=75;   print "#%s" % ("-"*kl)
+  header= "#  file   A/B   D    D-Do     I   I/Io,%    X     X-Xo     W    W-Wo    mjd"
   print header 
   print "#%s" % ("-"*kl)
-  dthM= 12.994
   
-  p0 = scipy.c_[37083, 42.986, 2.339]  # start fitting params
-  print "# master   %s  %5.2f       %7i  100    %5.2f          %4.2f         %5s" % \
-     (sdth(dthM), dthM,   p0[0][0],  p0[0][1], p0[0][2], 56462)
+  print "# master   %s  %5.2f  0.00 %7i  100    %5.2f   0.00    %4.2f  0.00   %5s" % \
+     (sdth(dthM), dthM,   p0[0][0],  p0[0][1], p0[0][2], 56531)
   print "#%s" % ("-"*kl)
 
   for m,mjd in  enumerate(mjds):     
       checkOneMjd(mjd)
       print "#%s" % ("-"*kl)
   
-

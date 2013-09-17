@@ -54,7 +54,7 @@ dithB=np.array(dB)
 
 fig = plt.figure()
 ax1 = fig.add_subplot(111)
-plt.ylim((-1,2))
+plt.ylim((-2,2))
 ax1.set_title("Line center - 43 pix")    
 ax1.set_xlabel('mjd')
 ax1.set_ylabel("Line center - 43 pix")

@@ -1,7 +1,7 @@
 09/11/2013
-I created this file to list of programs and  supporting files in this
+I created this file to list the programs and  supporting files in this
 directory and place a very short description of them. 
-The detailed description and usage might be found in the text of programs. 
+The detailed description and usage might be found inside programs. 
 Fill free to edit this file. EM. 
 
 readme.txt  
