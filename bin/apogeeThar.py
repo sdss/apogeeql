@@ -14,14 +14,21 @@ History:
 09/11/2013: EM added to apogeeql svn bin repository
 
 09/16/2013: EM reference changed to the first completed set of calibration after 
-2013 summer shakedown,  mjd=56531, Aug 26,2013, ff=09690003, 09690005, 09690014, 09690016
+2013 summer shakedown,  
+mjd=56531, Aug 26,2013, ff=09690003, 09690005, 09690014, 09690016
 
-example:
+examples:
+The first completed calibration night  after 
  ./apogeeThar.py -m1 56531
  
- check from 06/01/2013  (56445)  - 09/01/2013  (56537)
+ check for range from 06/01/2013  (56445)  - 09/01/2013  (56537)
  ./apogeeThar.py -m1 56445  -m2 56537
  
+ 09/17/2013: EM tested second spectral line
+# p0 = scipy.c_[7912, 940, 1.3]  # initial fitting params, Line 2, VM, dither A
+p0 = scipy.c_[7300, 941.17, 1.36]  # initial fitting params, Line 2, mjd=56531, dither A
+I got the same results with dither one pix jump for second line, as I got before
+for the first line.  
  '''
 import argparse
 import pyfits, numpy, scipy
@@ -40,7 +47,11 @@ masterPath="%s%s/apRaw-%s.fits" % (pathData, mjdMaster,masterFile)
 
 # define a gaussian fitting function where, 
 # p0[0] = amplitude, p0[1] = center, p0[2] = fwhm
-p0 = scipy.c_[36750, 44.004, 2.29]  # initial fitting params   for mjd=56531
+
+#p0 = scipy.c_[36750, 44.004, 2.29]  # initial fitting params, Line 1   for mjd=56531
+# p0 = scipy.c_[7912, 940, 1.3]  # initial fitting params, Line 2, VM, dither A
+p0 = scipy.c_[7300, 941.17, 1.36]  # initial fitting params, Line 2, mjd=56531, dither A
+
 #---------
 
 def getFullName(ff):
@@ -108,7 +119,6 @@ def checkOneMjd(mjd):
   files = sorted(glob.glob(mask))
   if len(files)==0:
      return False
-#  print header 
   for i,ff in enumerate(files): 
       hdr,data=readFile(ff)  #   read data file
       if not ifThar(hdr):    # check if file thar arc? 
@@ -124,7 +134,8 @@ def checkOneMjd(mjd):
       # print the result of fitting  
       if success==1:
          dth=float(hdr['DITHPIX'])
-     #    print p1[0],p1[1], p1[2] 
+    #    use this print for params
+    #     print "fitting params = ",p1[0],p1[1], p1[2] 
          offset=p1[1] - p0[0][1]
          ff1=ff[33:41]  
          mm=ff[21:26]
@@ -142,13 +153,13 @@ if __name__ == "__main__":
 # mjd
   TAI_UTC =34; sjd1=(time.time() + TAI_UTC) / 86400.0 + 40587.3;  sjd= int (sjd1)
 
-  desc = 'apogee arc Thar check'
+  desc = 'apogee arc Thar check for mjd range'
   parser = argparse.ArgumentParser(description=desc)
 #  parser.add_argument('-f', '--datafile', help='enter filename')
-  parser.add_argument('-m1', '--mjd1', help='enter mjd1 - start, or just one night', \
-       default=sjd,  type=int)
-       
-  parser.add_argument('-m2', '--mjd2',  help='enter mjd2 - end', type=int)
+  parser.add_argument('-m1', '--mjd1', help='start mjd range, default current mjd', \
+        default=sjd,  type=int)
+  parser.add_argument('-m2', '--mjd2',  help='end of mjd range, default is mjd1', \
+         type=int)
   args = parser.parse_args()    
   mjd1=args.mjd1
   mjd2=args.mjd2

@@ -10,6 +10,8 @@ EM 09/06/2013
 
 History: 
 09/11/2013: EM: added to apogeeql svn repository
+09/17/2013: forced matplotlib plot  mjd labels without offset
+   
 '''
 
 import numpy as np
@@ -23,14 +25,14 @@ with open(file) as f:
     data = f.read()
 data = data.split('\n')
 
-# remove # comments  
+# drop comments  
 data1=[]
 for line in data: 
    ll=line.lstrip()
    if len(ll)>0 and ll[0] !="#":  data1.append(line)
 data=data1
 
-# dither A  
+# read line offset for A only   
 dataA=[]
 for line in data: 
    ll=line.lstrip()
@@ -41,7 +43,7 @@ dA= [float(row.split()[7]) for row in dataA]
 mjdA=np.array(xA)
 dithA=np.array(dA)
 
-# dither B
+# read line offset for B only
 dataB=[]
 for line in data: 
    ll=line.lstrip()
@@ -55,12 +57,14 @@ dithB=np.array(dB)
 fig = plt.figure()
 ax1 = fig.add_subplot(111)
 plt.ylim((-2,2))
-ax1.set_title("Line center - 43 pix")    
+ax1.set_title("Line center - master center  pix")    
 ax1.set_xlabel('mjd')
-ax1.set_ylabel("Line center - 43 pix")
-Aplot=ax1.plot(mjdA,dithA, 'o', color='red', markersize=3, label='A 12.994')
-Bplot=ax1.plot(mjdB,dithB, 'o', color='blue', markersize=3, label='B 13.499')
+ax1.set_ylabel("Line center - master center pix")
+#Aplot=ax1.plot(xA,dithA, 'o', color='red', markersize=3, label='A 12.994')
+Aplot=ax1.plot(mjdA,dithA, 'o', color='red', markersize=3.5, label='A 12.994')
+Bplot=ax1.plot(mjdB,dithB, 'o', color='blue', markersize=3.5, label='B 13.499')
 legend = ax1.legend(loc='lower right')
-
 ax1.grid(True, which='both')
+plt.ticklabel_format(useOffset=False)
+
 plt.show()
