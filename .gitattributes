@@ -1,6 +1,4 @@
 * text=auto !eol
-bin/apRaw-03720068.fits -text svneol=unset#unset
-bin/apRaw-09690003.fits -text svneol=unset#unset
 bin/apogee1m -text
 bin/apogeeThar.py -text
 bin/apogeeTharPlot.py -text
