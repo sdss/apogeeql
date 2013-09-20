@@ -45,13 +45,6 @@ mjdMaster="56531"
 masterFile="09690003";
 masterPath="%s%s/apRaw-%s.fits" % (pathData, mjdMaster,masterFile)
 
-# define a gaussian fitting function where, 
-# p0[0] = amplitude, p0[1] = center, p0[2] = fwhm
-
-#p0 = scipy.c_[36750, 44.004, 2.29]  # initial fitting params, Line 1   for mjd=56531
-# p0 = scipy.c_[7912, 940, 1.3]  # initial fitting params, Line 2, VM, dither A
-p0 = scipy.c_[7300, 941.17, 1.36]  # initial fitting params, Line 2, mjd=56531, dither A
-
 #---------
 
 def getFullName(ff):
@@ -132,19 +125,20 @@ def checkOneMjd(mjd):
       p1, success = scipy.optimize.leastsq(errfunc, p0.copy()[0],args=(pix,spe))
 
       # print the result of fitting  
-      if success==1:
+      if success==1 or  success==2:
          dth=float(hdr['DITHPIX'])
-    #    use this print for params
     #     print "fitting params = ",p1[0],p1[1], p1[2] 
          offset=p1[1] - p0[0][1]
          ff1=ff[33:41]  
          mm=ff[21:26]
          intrel=(p1[0]/p0[0][0])*100
          widthrel=(p1[2] - p0[0][2])
-         print " %8s  %s  %5.2f  %4.2f %7i  %3i    %5.2f  %5.2f    %4.2f %5.2f   %5s" % \
-             (ff1, sdth(dth), dth,  dth-dthM, p1[0], intrel,  p1[1], offset, p1[2], widthrel, mm)
+         print " %8s  %s  %5.2f  %4.2f %7i  %3i    %5.2f  %5.2f    %4.2f %5.2f   %5s   (%s)" % \
+             (ff1, sdth(dth), dth,  dth-dthM, p1[0], intrel,  p1[1], offset, p1[2], widthrel, mm, success)
       else: 
-           print "Fitting was not successful, success code =",success 
+        print "#     %s,  fitting was not successful, success code = %s"% (ff1,success) 
+        print "fitting params = ",p1[0],p1[1], p1[2] 
+
   return
 
   
@@ -160,21 +154,37 @@ if __name__ == "__main__":
         default=sjd,  type=int)
   parser.add_argument('-m2', '--mjd2',  help='end of mjd range, default is mjd1', \
          type=int)
+  parser.add_argument('-l', '--line',  help='1,2,or 3:  spectral line selection', \
+         default=2,  type=int)
+
   args = parser.parse_args()    
   mjd1=args.mjd1
   mjd2=args.mjd2
-  
-  #if mjd1==None:  mjd1=sjd
-  #sys.exit("mjd1 is not set, exit")
   if mjd2==None:  mjd2=mjd1
   mjds=range(mjd1, mjd2+1)
-  
+
+
+# define a gaussian fitting function strarting approximation
+  line=args.line  
+  if line==1: 
+     p0 = scipy.c_[36750, 44.004, 2.29]  # initial fitting params, Line 1   for mjd=56531
+  elif line ==2:
+     p0 = scipy.c_[7300, 941.1758, 1.36] # Line 2 
+  elif line==3:
+     p0 = scipy.c_[26238.0, 3637.730, 1.58] # Line 3 
+  else: 
+     sys.exit("wrong line number")
+
+  outfile="apThar-L%1i-%5i-%5i_010.outfile" % (line, mjd1, mjd2)      
+  print "# %s" % (outfile)
+  print "# ./apogeeThar.py -m1 %s -m2 %s -l %s > %s " % (mjd1, mjd2, line, outfile) 
+        
 # print master fitting parameners  
-  print "# ./apogeeThar.py -m1 %s -m2 %s > apogeeThar.outfile" % (mjd1, mjd2)
+#  print "# ./apogeeThar.py -m1 %s -m2 %s > apogeeThar.outfile" % (mjd1, mjd2)
   
   print "# Master exposure path = %s" %  (masterPath)
   kl=75;   print "#%s" % ("-"*kl)
-  header= "#  file   A/B   D    D-Do     I   I/Io,%    X     X-Xo     W    W-Wo    mjd"
+  header= "#  file   A/B   D    D-Do     I   I/Io,%    X       X-Xo     W    W-Wo    mjd"
   print header 
   print "#%s" % ("-"*kl)
   

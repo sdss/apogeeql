@@ -18,13 +18,32 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter, FormatStrFormatter
 from pylab import * 
+import argparse
+import os.path, sys
 
-# read data text file  and split by lines
-file="apogeeThar.outfile"
-with open(file) as f:
+
+desc = 'apogeeThar.py result plotting'
+parser = argparse.ArgumentParser(description=desc)
+parser.add_argument('-o', '--outfile', help='outfile to plot')
+args = parser.parse_args()    
+outfile=args.outfile
+if outfile == None: 
+    sys.exit("no outfile entered")
+
+if  not os.path.isfile(outfile):
+    sys.exit("no file found")
+  
+# read  file  and split by lines
+with open(outfile) as f:
     data = f.read()
 data = data.split('\n')
+title=data[0][2:]
 
+print data[6]
+
+masterLine=data[6].strip().split(' ')
+centerLine=masterLine[18]
+  
 # drop comments  
 data1=[]
 for line in data: 
@@ -57,12 +76,13 @@ dithB=np.array(dB)
 fig = plt.figure()
 ax1 = fig.add_subplot(111)
 plt.ylim((-2,2))
-ax1.set_title("Line center - master center  pix")    
+#ax1.set_title("Line center - master center  pix")    
+ax1.set_title(title)    
 ax1.set_xlabel('mjd')
-ax1.set_ylabel("Line center - master center pix")
+ax1.set_ylabel("Line center - %s pix" % centerLine)
 #Aplot=ax1.plot(xA,dithA, 'o', color='red', markersize=3, label='A 12.994')
-Aplot=ax1.plot(mjdA,dithA, 'o', color='red', markersize=3.5, label='A 12.994')
-Bplot=ax1.plot(mjdB,dithB, 'o', color='blue', markersize=3.5, label='B 13.499')
+Aplot=ax1.plot(mjdA,dithA, 'o', color='red', markersize=3.5, label='A')
+Bplot=ax1.plot(mjdB,dithB, 'o', color='blue', markersize=3.5, label='B')
 legend = ax1.legend(loc='lower right')
 ax1.grid(True, which='both')
 plt.ticklabel_format(useOffset=False)
