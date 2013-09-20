@@ -32,7 +32,6 @@ for the first line.
  '''
 import argparse
 import pyfits, numpy, scipy
-from pylab import *
 import scipy.optimize
 import sys, os.path, glob
 import time
