@@ -5,7 +5,11 @@
 todo:  use walk to make the list of files with variable directory tree 
 '''
 
-import os,sys
+
+import sys
+sys.dont_write_bytecode=True
+
+import os
 import glob
 
 myName=os.path.basename(__file__)
@@ -17,9 +21,12 @@ for i, ff in enumerate(files):
     if ff == myName: 
        inf=__doc__
        ll=inf.split('\n')[0]
-    else:         
-       inf=__import__(mm).__doc__      
-       ll=inf.split('\n')[0]
+    else:           
+       try: 
+          inf=__import__(mm).__doc__      
+          ll=inf.split('\n')[0]
+       except ImportError: 
+          ll=" ?"          
     print " - %s: %s" % (mm.ljust(15),ll)
 print ""
 

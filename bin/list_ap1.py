@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-"""
-Search a list of apogee files in mjd directory
+
+""" Search a list of apogee files in mjd directory
 
 list_ap1.py  (for current mjd)
 list_ap1.py -m  <mjd>  (for other mjd)
