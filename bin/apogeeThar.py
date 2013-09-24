@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 
-'''
-EM: Program to check the stability of APOGEE instrument. 
+'''apogeeThar.py  check apogee Thar arcs in mjd range (EM)
+
+Program to check the stability of APOGEE instrument. 
 It uses ArcLamp THAR data  and fits a gaussian function
 to one spectral line x-center=43 and output fitting parameters
 relative to reference data apRaw-09000004.fits fitting. 
@@ -32,6 +33,7 @@ for the first line.
  '''
 import argparse
 import pyfits, numpy, scipy
+from pylab import *
 import scipy.optimize
 import sys, os.path, glob
 import time
