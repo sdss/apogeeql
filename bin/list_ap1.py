@@ -149,6 +149,6 @@ if __name__ == "__main__":
         for i,f in enumerate(sorted(files)):
              list_one_file(i,f, mjd) 
     print line    
-    ss="     THAR Line Centers for A/B average, pix: %5.1f" % (p0[0][1])
+    ss="    THAR Line Centers reference (the average A and B, mjd=56531) = %6.2f pix" % (p0[0][1])
     print ss, "\n"
 #...
