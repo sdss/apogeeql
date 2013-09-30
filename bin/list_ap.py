@@ -127,6 +127,7 @@ if __name__ == "__main__":
     args = parser.parse_args()    
     mjd=args.mjd
     
+    print "APOGEE data list"
     pp="/data/apogee/utr_cdr/"
     fNames="%s%s/apRaw-%s.fits"%(pp,mjd,"*")
     print "   raw_data: ", fNames

@@ -7,7 +7,7 @@ bin/apogeeql -text
 bin/aptest.py -text
 bin/fileList.py -text
 bin/fix_missing_bzero.py -text
-bin/list_ap1.py -text
+bin/list_ap.py -text
 bin/plugmapm2a.py -text
 bin/readme.txt -text
 bin/talk2ql.py -text
