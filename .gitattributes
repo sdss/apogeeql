@@ -2,7 +2,6 @@
 bin/apogee1m -text
 bin/apogeeThar.py -text
 bin/apogeeTharPlot.py -text
-bin/apogeeTharTest.py -text
 bin/apogeeql -text
 bin/aptest.py -text
 bin/fileList.py -text

@@ -1,35 +1,32 @@
 #!/usr/bin/env python
 
-'''apogeeThar.py  check apogee Thar arcs in mjd range (EM)
+'''apogeeThar.py  check apogee Thar arcs (EM)
 
-Program to check the stability of APOGEE instrument. 
-It uses ArcLamp THAR data  and fits a gaussian function
-to one spectral line x-center=43 and output fitting parameters
-relative to reference data apRaw-09000004.fits fitting. 
- 
+Program to check the stability of APOGEE instrument:
+ - take ArcLamp THAR quick-red data 
+ - takes 1-3 spectra  which is optional
+ - do fitting of gaussian function to one spectral line on each chip.
+ - compare results with reference, average for mjd=56531, Aug 26,2013, 
+             ff=09690003, 09690005, 09690014, 09690016.
+  
 EM 09/01/2013
-Usage:  ./apogeeThar.py <-m1 "start mjd"> <-m2 enf mjd > 
-    the output might be redirected to file   
+Usage:  ./apogeeThar.py <-m1 mjd1> <-m2 mjd2> 
+
+examples:
+ ./apogeeThar.py -m1 56531    # reference
+ 
+ ./apogeeThar.py -m1 56560 -m2  56567
+
+ ./apogeeThar.py -m1 56445  -m2 56537    # 06/01/2013 (56445) -- 09/01/2013 (56537)
 
 History: 
 09/11/2013: EM added to apogeeql svn bin repository
-
-09/16/2013: EM reference changed to the first completed set of calibration after 
-2013 summer shakedown,  
-mjd=56531, Aug 26,2013, ff=09690003, 09690005, 09690014, 09690016
-
-examples:
-The first completed calibration night  after 
- ./apogeeThar.py -m1 56531
- 
- check for range from 06/01/2013  (56445)  - 09/01/2013  (56537)
- ./apogeeThar.py -m1 56445  -m2 56537
- 
- 09/17/2013: EM tested second spectral line
-# p0 = scipy.c_[7912, 940, 1.3]  # initial fitting params, Line 2, VM, dither A
-p0 = scipy.c_[7300, 941.17, 1.36]  # initial fitting params, Line 2, mjd=56531, dither A
-I got the same results with dither one pix jump for second line, as I got before
-for the first line.  
+09/16/2013: EM reference is the first calibration set after 2013 summer
+   mjd=56531, Aug 26,2013, ff=09690003, 09690005, 09690014, 09690016     
+09/30/2013: EM:   use quick-red instead of instead of raw data; 
+   reorganized output for differences only, 3-lines and 3 rows output, 
+   design for night log. 
+   
  '''
 import argparse
 import pyfits, numpy, scipy
@@ -40,160 +37,121 @@ import time
 
 #  Constants
 dthM= 12.994
+p0a = scipy.c_[53864, 939.646, 1.2745]
+p0b = scipy.c_[46184.2, 924.366, 1.071]
+p0c = scipy.c_[31715, 1776.62, 0.803]
 
-pathData="/data/apogee/utr_cdr/"
+
+pathData="/data/apogee/quick_red/"
 mjdMaster="56531"
 masterFile="09690003";
-masterPath="%s%s/apRaw-%s.fits" % (pathData, mjdMaster,masterFile)
+masterPath="%s%s/ap1D-a-%s.fits.fz" % (pathData, mjdMaster,masterFile)
 
 #---------
-
-def getFullName(ff):
-  ss="apRaw-%s.fits" % ff
-  mask="%s*/%s" % (pathData, ss)
-  files = glob.glob(mask)
-  nfiles= len(files)
-  return files[0]
-
-def readFile(ff): 
-  hdulist=pyfits.open(ff,'readonly')
-  hdr = hdulist[0].header
-  data=hdulist[0].data
-  dth=float(hdr['DITHPIX'])
-  hdulist.close()
-  return hdr,data     
-
-def getSpe(data, l1,l2): 
-  sz1=data.shape 
-  def ds9topy(p):  return [p[1],p[0]]
-  p1=[0,l1];  p1conv=ds9topy(p1)
-  p2=[sz1[1], l2];  p2conv=ds9topy(p2)
-  dat1=data[p1conv[0]:p2conv[0],:]  # select lime of spectra
-  spe=numpy.average(dat1, axis=0)    # average all spectra in that line
-  return spe
-
-def plotSpe(spe, fit, dx): 
-  pix=scipy.linspace(0, spe.shape[0], num=spe.shape[0])
-  plot(pix,spe)
-  plot(pix,spe, "bo")
-  plot(pix,fit, color="red")
-  plot(pix,fit, "ro")
-  grid(True)
-  xlabel('pix')
-  ylabel('intensity')
-  ymax=spe.max()+spe.max()*0.1
-  title('Spectrum arc APOGEE')
-  #  xlim([0,8192])  # full range of pixels
-  xlim([dx[0],dx[1]])
-  ylim([0,ymax])
-  plot([2047,2047],[0,ymax], color="green") 
-  plot([4097,4097],[0,ymax], color="green") 
-  plot([6145,6145],[0,ymax], color="green") 
-    #savefig("test.png")
-  show()  
-  return 
   
 def sdth(dth): 
     if dth==12.994:  return "A"
     elif dth==13.499:  return "B"
     else: return "?"    
  
-def ifThar(hdr): 
-  # check if this arc1?   
-  imtype= hdr.get('IMAGETYP')
-  q1=hdr.get('IMAGETYP') == "ArcLamp"
-  q2=hdr.get('NFRAMES') ==12
-  if (q1 and q2):  return True
-  else:  return False
-
+  
 def checkOneMjd(mjd):
-  ss="apRaw-%s.fits" % "*"  
-  pathData="/data/apogee/utr_cdr/%5s" %  mjd  
-  mask="%s/%s" % (pathData, ss)
+  mask="/data/apogee/quickred/%s/ap1D-a-*.fits.fz" % (mjd)      
   files = sorted(glob.glob(mask))
   if len(files)==0:
      return False
-  for i,ff in enumerate(files): 
-      hdr,data=readFile(ff)  #   read data file
-      if not ifThar(hdr):    # check if file thar arc? 
-         continue
-      spe= getSpe(data,1200, 1500) # select swap ad average to one spectrum
+  for i,ff in enumerate(files):   #   check One File
 
-      # fit gaussian function
-      pix=scipy.linspace(0, spe.shape[0], num=spe.shape[0])
-      fitfunc = lambda p0, x: p0[0]*scipy.exp(-(x-p0[1])**2/(2.0*p0[2]**2))
-      errfunc = lambda p, x, y: fitfunc(p,x)-y
-      p1, success = scipy.optimize.leastsq(errfunc, p0.copy()[0],args=(pix,spe))
+#  read fits data
+     hdulist=pyfits.open(ff,'readonly')
+     hdr = hdulist[0].header
+ #    data1=hdulist[1].data
+     hdulist.close()
 
-      # print the result of fitting  
-      if success==1 or  success==2:
-         dth=float(hdr['DITHPIX'])
+#  check is file  ArcLamp and Thar? 
+     q1=hdr.get('IMAGETYP')=="ArcLamp"
+     q2=hdr.get('LAMPTHAR')==1
+     if not(q1 and q2):
+          continue
+          
+     dth=float(hdr['DITHPIX'])
+     rows= [150]
+    #    rows=[270, 150, 30]
+     ss="%5s %8s %s" %  (mjd,ff[35:43],sdth(dth) )   
+     for row in rows:      
+         ss="%s %3i" %  (ss,  row)  # row
+         lines=["a","b","c"]
+         for line in lines: 
+            s1="ap1D-a"; s2="ap1D-%s" % line;   
+            ff1=ff.replace(s1, s2)  
+    
+            hdulist=pyfits.open(ff1,'readonly')
+            data1=hdulist[1].data
+            hdulist.close()
+
+            pp="p0%s" % line
+            p0=eval(pp)    
+
+            x1=p0[0][1]-10;   x2=p0[0][1]+10
+            x=numpy.arange(data1.shape[1])[x1:x2]  #  x-axis array in pix
+            spe=data1[row,x1:x2]  #read spectrum at y=150 and in line range 
+ 
+            fitfunc = lambda p0, x: p0[0]*scipy.exp(-(x-p0[1])**2/(2.0*p0[2]**2))
+            errfunc = lambda p, x, y: fitfunc(p,x)-y
+            p1, success= scipy.optimize.leastsq(errfunc, p0.copy()[0],args=(x,spe))
+        
+            ss="%s   %5.2f" % (ss, (p1[0]/p0[0][0]))  # intensity
+            ss="%s %5.2f" % (ss,  p1[1] - p0[0][1])  # profile center
+            ss="%s %5.2f" % (ss, p1[2] - p0[0][2])  # width
+         print "%s " % ss
     #     print "fitting params = ",p1[0],p1[1], p1[2] 
-         offset=p1[1] - p0[0][1]
-         ff1=ff[33:41]  
-         mm=ff[21:26]
-         intrel=(p1[0]/p0[0][0])*100
-         widthrel=(p1[2] - p0[0][2])
-         print " %8s  %s  %5.2f  %4.2f %7i  %3i    %5.2f  %5.2f    %4.2f %5.2f   %5s   (%s)" % \
-             (ff1, sdth(dth), dth,  dth-dthM, p1[0], intrel,  p1[1], offset, p1[2], widthrel, mm, success)
-      else: 
-        print "#     %s,  fitting was not successful, success code = %s"% (ff1,success) 
-        print "fitting params = ",p1[0],p1[1], p1[2] 
 
   return
 
   
 if __name__ == "__main__":
 
-# mjd
+# current mjd
   TAI_UTC =34; sjd1=(time.time() + TAI_UTC) / 86400.0 + 40587.3;  sjd= int (sjd1)
 
   desc = 'apogee arc Thar check for mjd range'
   parser = argparse.ArgumentParser(description=desc)
-#  parser.add_argument('-f', '--datafile', help='enter filename')
   parser.add_argument('-m1', '--mjd1', help='start mjd range, default current mjd', \
         default=sjd,  type=int)
   parser.add_argument('-m2', '--mjd2',  help='end of mjd range, default is mjd1', \
          type=int)
-  parser.add_argument('-l', '--line',  help='1,2,or 3:  spectral line selection', \
-         default=2,  type=int)
-
+  parser.add_argument('-r', '--ref',  action="store_true",  help='end of mjd range, default is mjd1')
+                 
+#  parser.add_argument('-v', '--ver',  help='full ver of tests, rows=50,150,250; \
+#      default row=150', 
+#     \   - full  True ? 
   args = parser.parse_args()    
+  
   mjd1=args.mjd1
   mjd2=args.mjd2
   if mjd2==None:  mjd2=mjd1
   mjds=range(mjd1, mjd2+1)
 
-
-# define a gaussian fitting function strarting approximation
-  line=args.line  
-  if line==1: 
-     p0 = scipy.c_[36750, 44.004, 2.29]  # initial fitting params, Line 1   for mjd=56531
-  elif line ==2:
-     p0 = scipy.c_[7300, 941.1758, 1.36] # Line 2 
-  elif line==3:
-     p0 = scipy.c_[26238.0, 3637.730, 1.58] # Line 3 
-  else: 
-     sys.exit("wrong line number")
-
-  outfile="apThar-L%1i-%5i-%5i_010.outfile" % (line, mjd1, mjd2)      
-  print "# %s" % (outfile)
-  print "# ./apogeeThar.py -m1 %s -m2 %s -l %s > %s " % (mjd1, mjd2, line, outfile) 
-        
-# print master fitting parameners  
-#  print "# ./apogeeThar.py -m1 %s -m2 %s > apogeeThar.outfile" % (mjd1, mjd2)
-  
-  print "# Master exposure path = %s" %  (masterPath)
-  kl=75;   print "#%s" % ("-"*kl)
-  header= "#  file   A/B   D    D-Do     I   I/Io,%    X       X-Xo     W    W-Wo    mjd"
+  ver=False
+  if ver: sver="full"
+  else:  sver="short"   
+  print "# ./apogeeThar.py -m1 %s -m2 %s" % (mjd1, mjd2) 
+  outfile="apThar_%5i-%5i_%s.outfile" % (mjd1, mjd2, sver)   
+#  print outfile
+     
+  kl=79;   print "#%s" % ("-"*kl)
+  header= "# mjd  file  A/B row"+" "*11+"a"+" "*19+"b"+" "*19+"c"
   print header 
+  spHed="I/Io  X-Xo  W-Wo"
+  print "#%s" % (" "*23+spHed+" "*4+spHed+" "*4+spHed)
   print "#%s" % ("-"*kl)
-  
-  print "# master   %s  %5.2f  0.00 %7i  100    %5.2f   0.00    %4.2f  0.00   %5s" % \
-     (sdth(dthM), dthM,   p0[0][0],  p0[0][1], p0[0][2], 56531)
-  print "#%s" % ("-"*kl)
-
+ 
   for m,mjd in  enumerate(mjds):     
       checkOneMjd(mjd)
       print "#%s" % ("-"*kl)
   
+  if  args.ref:
+     for l in ['a', 'b', 'c']:
+        pp="p0%s" % l;   p0=eval(pp)     
+        print "# ref-%s:  [%6i,  %7.2f,  %4.2f]"% (l, p0[0][0], p0[0][1],p0[0][2]) 
+  print "" 
