@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-""" Search a list of apogee files in mjd directory
+""" Print list of apogee files in <mjd> directory (or current). 
 
 list_ap1.py  (for current mjd)
 list_ap1.py -m  <mjd>  (for other mjd)
@@ -66,6 +66,20 @@ def  list_one_file(i,f,mjd):
     qrfile2="/data/apogee/quickred/%s/ap2D-a-%s.fits.fz" % (mjd,fexp)
     if os.path.exists(qrfile2): ff=qrfile2
     else: ff=f
+    q=False
+    for i in range(3):
+      try :
+        hdulist=pyfits.open(ff,'readonly')
+        hdr = hdulist[0].header
+        hdulist.close()
+        q=True
+        break
+      except IOError:
+        continue 
+    if not q:
+       print "  cannot read file $s :" % ff 
+       return
+    
     hdulist=pyfits.open(ff,'readonly')
     hdr = hdulist[0].header
     hdulist.close()
