@@ -25,7 +25,10 @@ History 2013:
       Fit-B: int=62787.1,  x=939.890,  wg=1.262
       file-A= /data/apogee/quickred/56531/ap1D-a-09690003.fits.fz 
       file-B= /data/apogee/quickred/56531/ap1D-a-09690005.fits.fz
-         
+
+10/03  added _try_ statement while read fits file  if it is not available
+10/04  I stopped errro messages, but I still got pyfits warnings, 
+        I stopped them by  setting warnings.filterwarnings('ignore')           
 """
 
 import glob
@@ -35,6 +38,9 @@ import argparse
 import datetime as dt
 import time
 import scipy.optimize
+
+import warnings
+warnings.filterwarnings('ignore')
 
 p0 = scipy.c_[44941, 939.646, 1.287] #   A and B average for Line 2
 
@@ -77,7 +83,7 @@ def  list_one_file(i,f,mjd):
       except IOError:
         continue 
     if not q:
-       print "  cannot read file $s :" % ff 
+       print "  - cannot read file $s :" % ff 
        return
     
     hdulist=pyfits.open(ff,'readonly')
