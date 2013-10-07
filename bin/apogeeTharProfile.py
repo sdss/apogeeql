@@ -36,13 +36,14 @@ p0c = scipy.c_[31715, 1776.62, 0.803]
 
 
 if __name__ == "__main__":
-     defData='09690003'
      desc = 'apogeeThar fitting for one image, line #2, plot optional'
+     nexpDef='09690003'
      parser = argparse.ArgumentParser(description=desc)
-     parser.add_argument('-f', '--fexp', help='exposure number, default=%s, on mjd=56531' % defData,\
-             default=defData)
+     parser.add_argument('-n', '--nexp', help='exposure number, default=%s, on mjd=56531' % nexpDef,\
+             default=nexpDef)
      parser.add_argument('-l', '--line', help='chip and line number (a,b,c), default a',\
-             default='a')            
+             default='a') 
+     parser.add_argument('-f', '--fiber', help='fiber, default 150', type=int, default=150) 
      parser.add_argument('-p', '--plot', help='select to plot',\
              default=False, action='store_true')
              
@@ -50,8 +51,11 @@ if __name__ == "__main__":
      pp=args.plot
      if  args.line not in ['a','b','c']:
          sys.exit("not right line")
+     fiber=args.fiber 
+     if fiber > 300: 
+         sys.exit("fiber should be 1:300, you entered %s" % fiber)
 
-     mask="/data/apogee/quickred/*/ap1D-%s-%s.fits.fz" % (args.line, args.fexp)      
+     mask="/data/apogee/quickred/*/ap1D-%s-%s.fits.fz" % (args.line, args.nexp)      
      file = glob.glob(mask)
      if len(file)==0: 
           sys.exit("Erros: no file found %s" % file)
@@ -70,14 +74,22 @@ if __name__ == "__main__":
           sys.exit("Error: the file is not Thar arc")
 
      pp="p0%s" % args.line
-     p0=eval(pp)     
-     x1=p0[0][1]-10;   x2=p0[0][1]+10
-    
-     row=150  # select middle row
-     print "row=%s ( 1 -- 299) " % (row)
-     spe=data1[row,x1:x2]  #read spectrum at y=150 and in line range 
+     p0=eval(pp); 
+   #  print "Ref={int:%7.1f,  x:%7.3f,  wg:%5.3f}"  % (p0[0][0],p0[0][1],p0[0][2] )
+ 
+     zone=15;  x1=int(p0[0][1])-zone;   x2=int(p0[0][1])+zone
+     print "fiber=%s ( 1 -- 299) " % (fiber)
+     spe=data1[fiber,x1:x2]  #read spectrum at y=150 and in line range 
      x=numpy.arange(data1.shape[1])[x1:x2]  #  x-axis array in pix
+      
+     intI=p0[0][0];  cx=p0[0][1];  wd=p0[0][2] 
+     ll=numpy.where(spe == max(spe) )
+     print ll[0][0], x1
+     print ll[0][0]+x1
 
+
+     p0[0][1]= ll[0][0]+x1    
+             
      # fit gaussian function
      fitfunc = lambda p0, x: p0[0]*scipy.exp(-(x-p0[1])**2/(2.0*p0[2]**2))
      errfunc = lambda p, x, y: fitfunc(p,x)-y
@@ -85,12 +97,16 @@ if __name__ == "__main__":
      fitting = fitfunc(p1, x)
 
      print "success (0-4 ok) =",success
-     print "Ref={int:%7.1f,  x:%7.3f,  wg:%5.3f}"  % (p0[0][0],p0[0][1],p0[0][2] )
      print "Fit={int:%7.1f,  x:%7.3f,  wg:%5.3f}"  % (p1[0],p1[1], p1[2])
-     print "offset = =%5.2f" %  (p1[1]-p0[0][1])
+#     print "Ref={int:%7.1f,  x:%7.3f,  wg:%5.3f}"  % (p0[0][0],p0[0][1],p0[0][2] )
+     print "Ref={int:%7.1f,  x:%7.3f,  wg:%5.3f}"  % (intI,cx,wd)     
+     print "Dif={int:%7.1f,  x:%7.3f,  wg:%5.3f}" % \
+              (p1[0]/intI, p1[1]-cx,  p1[2]-wd)
+#     print "offset = =%5.2f" %  (p1[1]-p0[0][1])
+     print ""
      
      if not args.plot:
-         sys.exit()  # no plotting requested 
+         sys.exit()  # no plotting requested         
          
 # smooth
      xnew = numpy.linspace(x[0],x[-1],100)
@@ -106,6 +122,7 @@ if __name__ == "__main__":
      plt.xlabel('pixels')
      rr=70000;  r1=-0.1*rr;  r2=1.1*rr
      plt.ylim((r1,r2))   
+     plt.xlim((x1,x2))   
  #    plt.ylim((-max(spe_smooth)*0.1,max(spe_smooth)*1.1))   
      plt.ylabel('data')
      plt.plot(xnew, refFit_smooth, color='green', )     
@@ -116,4 +133,3 @@ if __name__ == "__main__":
      plt.xlim([x1,x2])
      plt.grid(True, which='both')
      plt.show()
-
