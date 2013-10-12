@@ -28,7 +28,9 @@ History 2013:
 
 10/03  added _try_ statement while read fits file  if it is not available
 10/04  I stopped errro messages, but I still got pyfits warnings, 
-        I stopped them by  setting warnings.filterwarnings('ignore')           
+        I stopped them by  setting warnings.filterwarnings('ignore')
+11/12  fixed bug with format message if function cannot read file   fits file     
+                   
 """
 
 import glob
@@ -45,11 +47,15 @@ warnings.filterwarnings('ignore')
 p0 = scipy.c_[44941, 939.646, 1.287] #   A and B average for Line 2
 
 #...
+
 def getOffset(qrfile1):
-    hdulist=pyfits.open(qrfile1,'readonly')
-    hdr = hdulist[0].header
-    data1=hdulist[1].data
-    hdulist.close()
+    try :
+        hdulist=pyfits.open(qrfile1,'readonly')
+        hdr = hdulist[0].header
+        data1=hdulist[1].data
+        hdulist.close()
+    except IOError:
+        return None 
 
     x1=930; x2=950  # define pix range for line #2
     spe=data1[150,x1:x2]  #read spectrum at y=150 and in line range 
@@ -70,10 +76,13 @@ def  list_one_file(i,f,mjd):
     fexp=f[33:41]
     qrfile1="/data/apogee/quickred/%s/ap1D-a-%s.fits.fz" % (mjd,fexp)
     qrfile2="/data/apogee/quickred/%s/ap2D-a-%s.fits.fz" % (mjd,fexp)
-    if os.path.exists(qrfile2): ff=qrfile2
-    else: ff=f
+
+    if os.path.exists(qrfile2): 
+         ff=qrfile2
+    else:  ff=f
+    
     q=False
-    for i in range(3):
+    for j in range(3):
       try :
         hdulist=pyfits.open(ff,'readonly')
         hdr = hdulist[0].header
@@ -83,13 +92,9 @@ def  list_one_file(i,f,mjd):
       except IOError:
         continue 
     if not q:
-       print "  - cannot read file $s :" % ff 
+       print "    cannot read file : %s" % ff 
        return
     
-    hdulist=pyfits.open(ff,'readonly')
-    hdr = hdulist[0].header
-    hdulist.close()
-
     ct=hdr.get('CARTID'); plate=hdr.get('PLATEID'); 
     if ct == None: ct="--"
     if plate==None: plate="----"
@@ -100,14 +105,16 @@ def  list_one_file(i,f,mjd):
     else: sdth="?"    
 
     imtype= hdr.get('IMAGETYP')
-    if imtype=="ArcLamp":
-      if hdr.get('LAMPUNE')==1:  imtype=imtype+" (une)"
-      if hdr.get('LAMPTHAR')==1:  imtype=imtype+" (thar)"
-    imtype=imtype.center(14)
-    
     offset="-"
-    if imtype=="ArcLamp (thar)":
-         offset=getOffset(qrfile1)
+    if imtype=="ArcLamp":
+      if hdr.get('LAMPUNE')==1:  
+          imtype=imtype+"-Une"
+      if hdr.get('LAMPTHAR')==1:  
+          imtype=imtype+"-Thar"
+          offs=getOffset(qrfile1)
+          if offs != None: 
+              offset=offs
+    imtype=imtype.center(14)
         
     ss1="%3i "% (i+1)  #i
     ss1=ss1+"%s  " % (hdr['DATE-OBS'][11:16]) # UT time
@@ -128,7 +135,7 @@ def  list_one_file(i,f,mjd):
 
     ss1=ss1+"%5s   " % (offset)  # offset 
 
-    ss1=ss1+ "%s" % hdr["OBSCMNT"][0:20]  # comment       
+    ss1=ss1+ "%s" % hdr["OBSCMNT"][0:8]  # comment       
      
     print ss1
 #...
@@ -160,7 +167,7 @@ if __name__ == "__main__":
     
     line="-"*80
     print line
-    header=" i   UT   File/Exp   Imtype     Nread Dth  Ct-Plate Archiv  Offset Comment"
+    header=" i   UT   File/Exp   Imtype     Nread Dth  Ct-Plate  Archiv Offset Comment"
     print header  
     print line 
     nfiles=len(files)
@@ -170,6 +177,8 @@ if __name__ == "__main__":
         for i,f in enumerate(sorted(files)):
              list_one_file(i,f, mjd) 
     print line    
-    ss="    THAR Line Centers reference (the average A and B, mjd=56531) = %6.2f pix" % (p0[0][1])
+#    ss="    THAR Line Centers reference (the average A and B, mjd=56531) = %6.2f pix" % (p0[0][1])
+    ss="    THAR offset=X0-%5.2f, pix " % (p0[0][1])
+    
     print ss, "\n"
 #...
