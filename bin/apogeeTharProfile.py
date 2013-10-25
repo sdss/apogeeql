@@ -30,9 +30,11 @@ import time
 import matplotlib.pyplot as plt
 from scipy.interpolate import spline
 
-p0a = scipy.c_[53864, 939.646, 1.2745]
-p0b = scipy.c_[46184.2, 924.366, 1.071]
-p0c = scipy.c_[31715, 1776.62, 0.803]
+import apogeeThar as th
+
+#p0a = scipy.c_[53864, 939.646, 1.2745]
+#p0b = scipy.c_[46184.2, 924.366, 1.071]
+#p0c = scipy.c_[31715, 1776.62, 0.803]
 
 
 if __name__ == "__main__":
@@ -73,63 +75,41 @@ if __name__ == "__main__":
      if not(q1 and q2):
           sys.exit("Error: the file is not Thar arc")
 
-     pp="p0%s" % args.line
-     p0=eval(pp); 
-   #  print "Ref={int:%7.1f,  x:%7.3f,  wg:%5.3f}"  % (p0[0][0],p0[0][1],p0[0][2] )
- 
-     zone=15;  x1=int(p0[0][1])-zone;   x2=int(p0[0][1])+zone
-     print "fiber=%s ( 1 -- 299) " % (fiber)
-     spe=data1[fiber,x1:x2]  #read spectrum at y=150 and in line range 
-     x=numpy.arange(data1.shape[1])[x1:x2]  #  x-axis array in pix
-      
-     intI=p0[0][0];  cx=p0[0][1];  wd=p0[0][2] 
-     ll=numpy.where(spe == max(spe) )
-     print ll[0][0], x1
-     print ll[0][0]+x1
-
-
-     p0[0][1]= ll[0][0]+x1    
-             
-     # fit gaussian function
-     fitfunc = lambda p0, x: p0[0]*scipy.exp(-(x-p0[1])**2/(2.0*p0[2]**2))
-     errfunc = lambda p, x, y: fitfunc(p,x)-y
-     p1, success= scipy.optimize.leastsq(errfunc, p0.copy()[0],args=(x,spe))
-     fitting = fitfunc(p1, x)
-
-     print "success (0-4 ok) =",success
-     print "Fit={int:%7.1f,  x:%7.3f,  wg:%5.3f}"  % (p1[0],p1[1], p1[2])
-#     print "Ref={int:%7.1f,  x:%7.3f,  wg:%5.3f}"  % (p0[0][0],p0[0][1],p0[0][2] )
-     print "Ref={int:%7.1f,  x:%7.3f,  wg:%5.3f}"  % (intI,cx,wd)     
-     print "Dif={int:%7.1f,  x:%7.3f,  wg:%5.3f}" % \
-              (p1[0]/intI, p1[1]-cx,  p1[2]-wd)
-#     print "offset = =%5.2f" %  (p1[1]-p0[0][1])
+     pp="th.p0%s" % args.line
+     pRef=eval(pp);    
+     (succ,p1,x,spe,ref,fit)=th.OneFileFitting(data1, fiber, pRef)           
+     print "success (0-4 ok) =",succ
+     print "Relative = [%9.2f,  %7.2f,  %4.2f] " % (p1[0]/pRef[0][0],p1[1] - pRef[0][1], p1[2] - pRef[0][2]   ) 
+     print "Fitting  = [%9.2f,  %7.2f,  %4.2f]" % (p1[0], p1[1], p1[2])
+     print "Refferenc= [%9.2f,  %7.2f,  %4.2f]" % (pRef[0][0], pRef[0][1],pRef[0][2])
+     if  args.plot: print " .. plotting"
      print ""
-     
+          
      if not args.plot:
          sys.exit()  # no plotting requested         
          
-# smooth
+# plotting
      xnew = numpy.linspace(x[0],x[-1],100)
      spe_smooth = spline(x,spe,xnew)
-     fitting_smooth = spline(x,fitting,xnew)
-
-     refFit = fitfunc(p0[0], x)
-     refFit_smooth = spline(x,refFit,xnew)
+     fitting_smooth = spline(x,fit,xnew)
+     refFit_smooth = spline(x,ref,xnew)
 
      fig = plt.figure(figsize=(8,5))
      plt.subplot(1, 1, 1)   # horiz, vertical
+     
      plt.title('%s' %(file[0])) 
      plt.xlabel('pixels')
-     rr=70000;  r1=-0.1*rr;  r2=1.1*rr
-     plt.ylim((r1,r2))   
-     plt.xlim((x1,x2))   
- #    plt.ylim((-max(spe_smooth)*0.1,max(spe_smooth)*1.1))   
      plt.ylabel('data')
-     plt.plot(xnew, refFit_smooth, color='green', )     
-     plt.plot(xnew, spe_smooth, color='black')
-     plt.plot(x, spe, 'o', color='black', markersize=3.5)
-     plt.plot(xnew, fitting_smooth, color='red', )
-     plt.plot([p0[0][1],p0[0][1]], [r1,r2], color='black', )
-     plt.xlim([x1,x2])
+     
+     rr=70000;  r1=-0.1*rr;  r2=1.1*rr;  
+     plt.ylim((r1,r2))   
+     plt.xlim((x[0],x[len(x)-1]))   
+     
+     plt.plot(xnew, refFit_smooth, color='green', )   # reference 
+     plt.plot(xnew, spe_smooth, color='black')   # data smooth ilne
+     plt.plot(x, spe, 'o', color='black', markersize=3.5)  # data with symbols
+     plt.plot(xnew, fitting_smooth, color='red', )  # fitting
+     plt.plot([pRef[0][1],pRef[0][1]], [r1,r2], color='black', )  # center for reference
+
      plt.grid(True, which='both')
      plt.show()
