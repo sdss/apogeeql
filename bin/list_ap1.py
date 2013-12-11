@@ -30,7 +30,8 @@ History 2013:
 10/04  I stopped errro messages, but I still got pyfits warnings, 
         I stopped them by  setting warnings.filterwarnings('ignore')
 11/12  fixed bug with format message if function cannot read file   fits file     
-                   
+12/10 fixed bug  fitting gaussian function if offset large  (copied function from apogeeThar) 
+
 """
 
 import glob
@@ -45,31 +46,58 @@ import warnings
 warnings.filterwarnings('ignore')
 
 p0 = scipy.c_[44941, 939.646, 1.287] #   A and B average for Line 2
+zone=20
 
 #...
 
-def getOffset(qrfile1):
+def getOffsetOld(qrfile1):
     try :
-        hdulist=pyfits.open(qrfile1,'readonly')
-        hdr = hdulist[0].header
-        data1=hdulist[1].data
-        hdulist.close()
+        hdr = pyfits.getheader(qrfile1)
+        data1 = pyfits.getdata(qrfile1,0)
     except IOError:
         return None 
 
     x1=930; x2=950  # define pix range for line #2
     spe=data1[150,x1:x2]  #read spectrum at y=150 and in line range 
-    x=numpy.arange(data1.shape[1])[x1:x2]  #  x-axis array in pix
+    x=numpy.arange(data1.shape[1])[x1:x2]  #  x-axis array in pix#
 
     # fit gaussian function
     fitfunc = lambda p0, x: p0[0]*scipy.exp(-(x-p0[1])**2/(2.0*p0[2]**2))
     errfunc = lambda p, x, y: fitfunc(p,x)-y
     p1, success= scipy.optimize.leastsq(errfunc, p0.copy()[0],args=(x,spe))
-#    print "Ref: int=%7.1f,  x=%7.3f,  wg=%5.3f"  % (p0[0][0],p0[0][1],p0[0][2] )
-#    print "Fit: int=%7.1f,  x=%7.3f,  wg=%5.3f"  % (p1[0],p1[1], p1[2])
-#    print "success of fitting(0-4 ok) =",success
-#    print "offset = =%5.2f" %  (p1[1]-p0[0][1])    
+    
+    print p1[1], p0[0][1]    
     return "%5.2f" % (p1[1] - p0[0][1])
+
+def getOffset(qrfile1):
+    try :
+        hdr = pyfits.getheader(qrfile1)
+        data1 = pyfits.getdata(qrfile1,0)
+    except IOError:
+        return None 
+    success, p1, x, spe, ref, fit =OneFileFitting(data1, 150, p0)
+    return "%5.2f" % (p1[1] - p0[0][1])
+
+    
+#...
+def OneFileFitting(data1, fiber, pRef):
+  p0=pRef.copy()
+# select zone around line  center
+  x1=p0[0][1]-zone;   x2=p0[0][1]+zone
+  x=numpy.arange(data1.shape[1])[x1:x2]  #  x-axis array in pix
+  spe=data1[fiber,x1:x2]  #read spectrum in the line range 
+
+  ll=numpy.where(spe == max(spe) )
+  p0[0][1]= ll[0][0]+x1   
+
+  fitfunc = lambda p0, x: p0[0]*scipy.exp(-(x-p0[1])**2/(2.0*p0[2]**2))
+  errfunc = lambda p, x, y: fitfunc(p,x)-y
+  p1, success= scipy.optimize.leastsq(errfunc, p0.copy()[0],args=(x,spe))
+  
+  ref= fitfunc(pRef[0], x)
+  fit= fitfunc(p1, x)
+  return success, p1, x, spe, ref, fit    
+    
     
 #...
 def  list_one_file(i,f,mjd):
@@ -84,9 +112,7 @@ def  list_one_file(i,f,mjd):
     q=False
     for j in range(3):
       try :
-        hdulist=pyfits.open(ff,'readonly')
-        hdr = hdulist[0].header
-        hdulist.close()
+        hdr = pyfits.getheader(ff)
         q=True
         break
       except IOError:
@@ -100,21 +126,29 @@ def  list_one_file(i,f,mjd):
     if plate==None: plate="----"
 
     dth= float(hdr['DITHPIX'])
-    if dth==12.994: sdth="A"
-    elif dth==13.499: sdth="B"
-    else: sdth="?"    
+    if dth==12.994: sdth="A (%6.2f)" % dth
+    elif dth==13.499: sdth="B (%6.2f)" % dth
+    else: sdth="? (%6.2f)"% dth    
 
     imtype= hdr.get('IMAGETYP')
     offset="-"
     if imtype=="ArcLamp":
       if hdr.get('LAMPUNE')==1:  
           imtype=imtype+"-Une"
-      if hdr.get('LAMPTHAR')==1:  
+      elif hdr.get('LAMPTHAR')==1:
           imtype=imtype+"-Thar"
           offs=getOffset(qrfile1)
           if offs != None: 
               offset=offs
+      else: imtype=imtype+"----"
     imtype=imtype.center(14)
+                
+   #   if hdr.get('LAMPTHAR')==1:  
+   #       imtype=imtype+"-Thar"
+   #       offs=getOffset(qrfile1)
+   #       if offs != None: 
+   #           offset=offs
+   # imtype=imtype.center(14)
         
     ss1="%3i "% (i+1)  #i
     ss1=ss1+"%s  " % (hdr['DATE-OBS'][11:16]) # UT time
@@ -154,7 +188,7 @@ if __name__ == "__main__":
     args = parser.parse_args()    
     mjd=args.mjd
     
-    print "APOGEE data list"
+    print "APOGEE data list,   mjd=%s" % mjd
     pp="/data/apogee/utr_cdr/"
     fNames="%s%s/apRaw-%s.fits"%(pp,mjd,"*")
     print "   raw_data: ", fNames
