@@ -30,8 +30,9 @@ History 2013:
 10/04  I stopped errro messages, but I still got pyfits warnings, 
         I stopped them by  setting warnings.filterwarnings('ignore')
 11/12  fixed bug with format message if function cannot read file   fits file     
-12/10 fixed bug  fitting gaussian function if offset large  (copied function from apogeeThar) 
-
+12/10 fixed bug  fitting gaussian function if offset large  (copied function from apogeeThar);
+    reformat - repalce ArcLams t Arc,  QuaFlat, and IntFlat; added dither set, format offset 
+    to 4.1f (it was  5.2f). 
 """
 
 import glob
@@ -76,7 +77,7 @@ def getOffset(qrfile1):
     except IOError:
         return None 
     success, p1, x, spe, ref, fit =OneFileFitting(data1, 150, p0)
-    return "%5.2f" % (p1[1] - p0[0][1])
+    return "%4.1f" % (p1[1] - p0[0][1])
 
     
 #...
@@ -126,22 +127,32 @@ def  list_one_file(i,f,mjd):
     if plate==None: plate="----"
 
     dth= float(hdr['DITHPIX'])
-    if dth==12.994: sdth="A (%6.2f)" % dth
-    elif dth==13.499: sdth="B (%6.2f)" % dth
-    else: sdth="? (%6.2f)"% dth    
+    if dth==12.994: sdth="A-%4.1f" % dth
+    elif dth==13.499: sdth="B-%4.1f" % dth
+    else: sdth="?-%4.1f"% dth    
 
     imtype= hdr.get('IMAGETYP')
     offset="-"
     if imtype=="ArcLamp":
       if hdr.get('LAMPUNE')==1:  
           imtype=imtype+"-Une"
+          imtype="Arc-Une"
       elif hdr.get('LAMPTHAR')==1:
           imtype=imtype+"-Thar"
+          imtype="Arc-Thar"
           offs=getOffset(qrfile1)
           if offs != None: 
               offset=offs
-      else: imtype=imtype+"----"
-    imtype=imtype.center(14)
+      else: 
+        imtype=imtype+"----"
+        imtype="Arc----"   
+    if imtype=="QuartzFlat":
+        imtype="QuaFlat"
+    if imtype=="InternalFlat":
+        imtype="IntFlat"
+        
+    imtype=imtype.center(10)
+
                 
    #   if hdr.get('LAMPTHAR')==1:  
    #       imtype=imtype+"-Thar"
@@ -152,7 +163,7 @@ def  list_one_file(i,f,mjd):
         
     ss1="%3i "% (i+1)  #i
     ss1=ss1+"%s  " % (hdr['DATE-OBS'][11:16]) # UT time
-    ss1=ss1+"%s  " % (f[33:41])  # exp number
+    ss1=ss1+"%s " % (f[33:41])  # exp number
     ss1=ss1+"%s " % (imtype)  # image type
     ss1=ss1+"%2i  " %  hdr.get('NFRAMES')  # nframes
     ss1=ss1+"%s  " % (sdth)  # dither            
@@ -201,7 +212,7 @@ if __name__ == "__main__":
     
     line="-"*80
     print line
-    header=" i   UT   File/Exp   Imtype     Nread Dth  Ct-Plate  Archiv Offset Comment"
+    header=" i   UT   File/Exp   Imtype  Nread  Dth    Ct-Plate  Archiv Offset Comment"
     print header  
     print line 
     nfiles=len(files)
