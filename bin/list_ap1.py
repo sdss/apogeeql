@@ -51,34 +51,14 @@ zone=20
 
 #...
 
-def getOffsetOld(qrfile1):
-    try :
-        hdr = pyfits.getheader(qrfile1)
-        data1 = pyfits.getdata(qrfile1,0)
-    except IOError:
-        return None 
-
-    x1=930; x2=950  # define pix range for line #2
-    spe=data1[150,x1:x2]  #read spectrum at y=150 and in line range 
-    x=numpy.arange(data1.shape[1])[x1:x2]  #  x-axis array in pix#
-
-    # fit gaussian function
-    fitfunc = lambda p0, x: p0[0]*scipy.exp(-(x-p0[1])**2/(2.0*p0[2]**2))
-    errfunc = lambda p, x, y: fitfunc(p,x)-y
-    p1, success= scipy.optimize.leastsq(errfunc, p0.copy()[0],args=(x,spe))
-    
-    print p1[1], p0[0][1]    
-    return "%5.2f" % (p1[1] - p0[0][1])
-
 def getOffset(qrfile1):
     try :
-        hdr = pyfits.getheader(qrfile1)
         data1 = pyfits.getdata(qrfile1,0)
-    except IOError:
+    except  :
         return None 
-    success, p1, x, spe, ref, fit =OneFileFitting(data1, 150, p0)
+#    success, p1, x, spe, ref, fit =OneFileFitting(data1, 150, p0)
+    success, p1 = OneFileFitting(data1, 150, p0)
     return "%4.1f" % (p1[1] - p0[0][1])
-
     
 #...
 def OneFileFitting(data1, fiber, pRef):
@@ -95,28 +75,29 @@ def OneFileFitting(data1, fiber, pRef):
   errfunc = lambda p, x, y: fitfunc(p,x)-y
   p1, success= scipy.optimize.leastsq(errfunc, p0.copy()[0],args=(x,spe))
   
-  ref= fitfunc(pRef[0], x)
-  fit= fitfunc(p1, x)
-  return success, p1, x, spe, ref, fit    
-    
-    
+#  ref= fitfunc(pRef[0], x)
+#  fit= fitfunc(p1, x)
+#  return success, p1, x, spe, ref, fit    
+  return success, p1
+          
 #...
 def  list_one_file(i,f,mjd):
+    path="/data/apogee/quickred/%s" % mjd
     fexp=f[33:41]
-    qrfile1="/data/apogee/quickred/%s/ap1D-a-%s.fits.fz" % (mjd,fexp)
-    qrfile2="/data/apogee/quickred/%s/ap2D-a-%s.fits.fz" % (mjd,fexp)
+    qrfile1="%s/ap1D-a-%s.fits.fz" % (path,fexp)
+    qrfile2="%s/ap2D-a-%s.fits.fz" % (path,fexp)
 
-    if os.path.exists(qrfile2): 
-         ff=qrfile2
-    else:  ff=f
-    
+    ff=f
+    if os.path.exists(qrfile2):  
+        ff=qrfile2
+
     q=False
     for j in range(3):
       try :
         hdr = pyfits.getheader(ff)
         q=True
         break
-      except IOError:
+      except :    # it was except IOError:
         continue 
     if not q:
        print "    cannot read file : %s" % ff 
@@ -134,33 +115,26 @@ def  list_one_file(i,f,mjd):
     imtype= hdr.get('IMAGETYP')
     offset="-"
     if imtype=="ArcLamp":
+      imtype="Arc"
       if hdr.get('LAMPUNE')==1:  
           imtype=imtype+"-Une"
-          imtype="Arc-Une"
       elif hdr.get('LAMPTHAR')==1:
           imtype=imtype+"-Thar"
-          imtype="Arc-Thar"
           offs=getOffset(qrfile1)
           if offs != None: 
               offset=offs
       else: 
         imtype=imtype+"----"
-        imtype="Arc----"   
-    if imtype=="QuartzFlat":
-        imtype="QuaFlat"
-    if imtype=="InternalFlat":
-        imtype="IntFlat"
-        
+    if imtype=="QuartzFlat":  imtype="QuaFlat"
+    if imtype=="InternalFlat": imtype="IntFlat"    
     imtype=imtype.center(10)
 
-                
-   #   if hdr.get('LAMPTHAR')==1:  
-   #       imtype=imtype+"-Thar"
-   #       offs=getOffset(qrfile1)
-   #       if offs != None: 
-   #           offset=offs
-   # imtype=imtype.center(14)
-        
+    arc=list("x-x-x")    
+    for i,l in enumerate(["a","b","c"]):
+        pp="/data/apogee/archive/%s/apR-%s-%s.apz"%(mjd,l,f[33:41])
+        if os.path.exists(pp): arc[2*i]=l 
+
+# print information
     ss1="%3i "% (i+1)  #i
     ss1=ss1+"%s  " % (hdr['DATE-OBS'][11:16]) # UT time
     ss1=ss1+"%s " % (f[33:41])  # exp number
@@ -168,20 +142,9 @@ def  list_one_file(i,f,mjd):
     ss1=ss1+"%2i  " %  hdr.get('NFRAMES')  # nframes
     ss1=ss1+"%s  " % (sdth)  # dither            
     ss1=ss1+" %2s-%4s   " % (ct, plate)
-
-    arcA="/data/apogee/archive/%s/apR-%s-%s.apz"%(mjd,"a",f[33:41])
-    arcB="/data/apogee/archive/%s/apR-%s-%s.apz"%(mjd,"b",f[33:41])
-    arcC="/data/apogee/archive/%s/apR-%s-%s.apz"%(mjd,"c",f[33:41])    
-    arc=list("x-x-x")
-    if os.path.exists(arcA): arc[0]="a" 
-    if os.path.exists(arcB): arc[2]="b" 
-    if os.path.exists(arcC): arc[4]="c" 
     ss1=ss1+"%s  "%"".join(arc)    # archive file existence
-
     ss1=ss1+"%5s   " % (offset)  # offset 
-
     ss1=ss1+ "%s" % hdr["OBSCMNT"][0:8]  # comment       
-     
     print ss1
 #...
 
