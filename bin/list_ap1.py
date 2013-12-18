@@ -46,8 +46,12 @@ import scipy.optimize
 import warnings
 warnings.filterwarnings('ignore')
 
-p0 = scipy.c_[44941, 939.646, 1.287] #   A and B average for Line 2
+import apogeeThar
+
+#p0 = scipy.c_[44941, 939.646, 1.287] #   A and B average for Line 2
+
 zone=20
+p0=apogeeThar.p0a.copy()
 
 #...
 
@@ -116,15 +120,13 @@ def  list_one_file(i,f,mjd):
     offset="-"
     if imtype=="ArcLamp":
       imtype="Arc"
-      if hdr.get('LAMPUNE')==1:  
-          imtype=imtype+"-Une"
+      if hdr.get('LAMPUNE')==1:  imtype=imtype+"-Une"
       elif hdr.get('LAMPTHAR')==1:
           imtype=imtype+"-Thar"
           offs=getOffset(qrfile1)
           if offs != None: 
               offset=offs
-      else: 
-        imtype=imtype+"----"
+      else: imtype=imtype+"----"
     if imtype=="QuartzFlat":  imtype="QuaFlat"
     if imtype=="InternalFlat": imtype="IntFlat"    
     imtype=imtype.center(10)
@@ -149,10 +151,11 @@ def  list_one_file(i,f,mjd):
 #...
 
 if __name__ == "__main__":
-    TAI_UTC =34
-    sjd1=(time.time() + TAI_UTC) / 86400.0 + 40587.3
-    sjd= int (sjd1)
-        
+#    TAI_UTC =34
+#    sjd1=(time.time() + TAI_UTC) / 86400.0 + 40587.3
+#    sjd= int (sjd1)
+
+    sjd=apogeeThar.curSjd()
     desc = 'list of files for one night of apogee observations'
     parser = argparse.ArgumentParser(description=desc)
     parser.add_argument('-m', '--mjd', 
