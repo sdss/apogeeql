@@ -53,37 +53,40 @@ import apogeeThar
 zone=20
 p0=apogeeThar.p0a.copy()
 
-#...
+#------------------------
+def curSjd():
+# current mjd
+  TAI_UTC =34; sjd1=(time.time() + TAI_UTC) / 86400.0 + 40587.3;  
+  sjd= int (sjd1)
+  return sjd
+#----------------------- 
 
 def getOffset(qrfile1):
     try :
         data1 = pyfits.getdata(qrfile1,0)
     except  :
         return None 
-#    success, p1, x, spe, ref, fit =OneFileFitting(data1, 150, p0)
-    success, p1 = OneFileFitting(data1, 150, p0)
-    return "%4.1f" % (p1[1] - p0[0][1])
-    
-#...
-def OneFileFitting(data1, fiber, pRef):
-  p0=pRef.copy()
-# select zone around line  center
-  x1=p0[0][1]-zone;   x2=p0[0][1]+zone
-  x=numpy.arange(data1.shape[1])[x1:x2]  #  x-axis array in pix
-  spe=data1[fiber,x1:x2]  #read spectrum in the line range 
+    success, p1, x, spe, ref, fit =apogeeThar.OneFileFitting(data1, 150, p0)
+    if success==5:
+        return " ? "
+    else:
+        return "%4.1f" % (p1[1] - p0[0][1])
 
-  ll=numpy.where(spe == max(spe) )
-  p0[0][1]= ll[0][0]+x1   
+# ......
 
-  fitfunc = lambda p0, x: p0[0]*scipy.exp(-(x-p0[1])**2/(2.0*p0[2]**2))
-  errfunc = lambda p, x, y: fitfunc(p,x)-y
-  p1, success= scipy.optimize.leastsq(errfunc, p0.copy()[0],args=(x,spe))
-  
-#  ref= fitfunc(pRef[0], x)
-#  fit= fitfunc(p1, x)
-#  return success, p1, x, spe, ref, fit    
-  return success, p1
-          
+def getFlux(f, nreads, imtype):
+    dat = pyfits.getdata(f,0)/nreads
+    dat=numpy.array(dat)
+    y=1024;  x= 1024
+    dat=dat[(y-200):(y+200),(x-100):(x+100)] 
+    med=numpy.mean(dat)
+    if imtype=="QuartzFlat":  nrm=167.05
+    elif imtype=="InternalFlat":  nrm=94.05
+    elif imtype=="DomeFlat":  nrm=81.525
+    else: nrm=None
+    if nrm != None:  return "%3i " % (med/nrm*100)
+    else:  return " ? "
+                    
 #...
 def  list_one_file(i,f,mjd):
     path="/data/apogee/quickred/%s" % mjd
@@ -112,12 +115,12 @@ def  list_one_file(i,f,mjd):
     if plate==None: plate="----"
 
     dth= float(hdr['DITHPIX'])
-    if dth==12.994: sdth="A-%4.1f" % dth
-    elif dth==13.499: sdth="B-%4.1f" % dth
-    else: sdth="?-%4.1f"% dth    
+    if dth==12.994: sdth="A(%4.1f)" % dth
+    elif dth==13.499: sdth="B(%4.1f)" % dth
+    else: sdth="?(%4.1f)"% dth    
 
     imtype= hdr.get('IMAGETYP')
-    offset="-"
+    offset=" - "
     if imtype=="ArcLamp":
       imtype="Arc"
       if hdr.get('LAMPUNE')==1:  imtype=imtype+"-Une"
@@ -127,45 +130,55 @@ def  list_one_file(i,f,mjd):
           if offs != None: 
               offset=offs
       else: imtype=imtype+"----"
-    if imtype=="QuartzFlat":  imtype="QuaFlat"
-    if imtype=="InternalFlat": imtype="IntFlat"    
+    if imtype=="QuartzFlat":  imtype="QuarFlat"
+    if imtype=="InternalFlat": imtype="InteFlat"    
     imtype=imtype.center(10)
 
     arc=list("x-x-x")    
-    for i,l in enumerate(["a","b","c"]):
+    for k,l in enumerate(["a","b","c"]):
         pp="/data/apogee/archive/%s/apR-%s-%s.apz"%(mjd,l,f[33:41])
-        if os.path.exists(pp): arc[2*i]=l 
-
+        if os.path.exists(pp): arc[2*k]=l 
+    
+    flux=" -  "    
+    if ( hdr.get('IMAGETYP')=="QuartzFlat")  or \
+       ( hdr.get('IMAGETYP')=="InternalFlat") or \
+       ( hdr.get('IMAGETYP')=="DomeFlat"):
+            flux=getFlux(f,hdr.get('NFRAMES'),hdr.get('IMAGETYP'))
+    
 # print information
     ss1="%3i "% (i+1)  #i
     ss1=ss1+"%s  " % (hdr['DATE-OBS'][11:16]) # UT time
     ss1=ss1+"%s " % (f[33:41])  # exp number
     ss1=ss1+"%s " % (imtype)  # image type
     ss1=ss1+"%2i  " %  hdr.get('NFRAMES')  # nframes
-    ss1=ss1+"%s  " % (sdth)  # dither            
+    ss1=ss1+"%s " % (sdth)  # dither            
     ss1=ss1+" %2s-%4s   " % (ct, plate)
-    ss1=ss1+"%s  "%"".join(arc)    # archive file existence
-    ss1=ss1+"%5s   " % (offset)  # offset 
-    ss1=ss1+ "%s" % hdr["OBSCMNT"][0:8]  # comment       
-    print ss1
+    ss1=ss1+"%s "%"".join(arc)    # archive file existence
+    ss1=ss1+"%4s " % (offset)  # offset
+    ss1=ss1+" %3s" % (flux)  # flux
+    
+    comm=hdr["OBSCMNT"]
+#    if comm=="None": comm=" -*"
+    ss1=ss1+ " %s" % comm[0:9] # comment
+    print ss1 #  ,len(ss1)
 #...
 
 if __name__ == "__main__":
-#    TAI_UTC =34
-#    sjd1=(time.time() + TAI_UTC) / 86400.0 + 40587.3
-#    sjd= int (sjd1)
 
-    sjd=apogeeThar.curSjd()
+    sjd=curSjd()
     desc = 'list of files for one night of apogee observations'
     parser = argparse.ArgumentParser(description=desc)
     parser.add_argument('-m', '--mjd', 
            help='enter mjd, default is current mjd',    
-     #      help='enter mjd, default is current mjd=%s' % int(sjd),
            default=int(sjd), type=int)
     args = parser.parse_args()    
     mjd=args.mjd
     
-    print "APOGEE data list,   mjd=%s" % mjd
+#    bs=os.path.basename(sys.argv[0])
+    bs=os.path.abspath(sys.argv[0])
+#    print  "# %s -m1 %s" % (bs, mjd)
+        
+    print "APOGEE data list,   mjd=%s" % mjd    
     pp="/data/apogee/utr_cdr/"
     fNames="%s%s/apRaw-%s.fits"%(pp,mjd,"*")
     print "   raw_data: ", fNames
@@ -178,7 +191,8 @@ if __name__ == "__main__":
     
     line="-"*80
     print line
-    header=" i   UT   File/Exp   Imtype  Nread  Dth    Ct-Plate  Archiv Offset Comment"
+    prc="%"
+    header=" i   UT   File/Exp   Imtype  Nread  Dth    Ct-Plate  Archiv Offset %sFlux Comment" % prc
     print header  
     print line 
     nfiles=len(files)
@@ -186,9 +200,11 @@ if __name__ == "__main__":
         print " - no files found -- " 
     else: 
         for i,f in enumerate(sorted(files)):
+         #    if (i)/15.0 == int((i)/15) and i!=0:
+         #         print line, "\n", header, "\n",line 
              list_one_file(i,f, mjd) 
+                  
     print line    
-#    ss="    THAR Line Centers reference (the average A and B, mjd=56531) = %6.2f pix" % (p0[0][1])
     ss="    THAR offset=X0-%5.2f, pix " % (p0[0][1])
     
     print ss, "\n"

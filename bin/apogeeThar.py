@@ -109,10 +109,11 @@ def checkOneMjd(mjd, dither, fibers, outfile):
      hdr = hdulist[0].header
      hdulist.close()
      dth=float(hdr['DITHPIX'])
-     q0= sdth(dth) in dither
+#     q0= sdth(dth) in dither
      q1= hdr.get('IMAGETYP')=="ArcLamp"
      q2= hdr.get('LAMPTHAR')==1
-     if q0 and q1 and q2:
+#     if q0 and q1 and q2:
+     if q1 and q2:
          fExp=ff[35:43] 
          ss="%5s %8s %s" %  (mjd,fExp,sdth(dth))                  
          checkOneFile(mjd,fibers,fExp,ss, outfile)
