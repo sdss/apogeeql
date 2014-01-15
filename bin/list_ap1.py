@@ -33,6 +33,8 @@ History 2013:
 12/10 fixed bug  fitting gaussian function if offset large  (copied function from apogeeThar);
     reformat - repalce ArcLams t Arc,  QuaFlat, and IntFlat; added dither set, format offset 
     to 4.1f (it was  5.2f). 
+
+01/09/2014 Added column with  normed flux for all three flats.  
 """
 
 import glob
@@ -42,6 +44,7 @@ import argparse
 import datetime as dt
 import time
 import scipy.optimize
+import re
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -60,6 +63,40 @@ def curSjd():
   sjd= int (sjd1)
   return sjd
 #----------------------- 
+def getMorningSequence(mjd): 
+    pp="/data/apogee/utr_cdr/"
+    fNames="%s%s/apRaw-%s.fits"%(pp,mjd,"*")
+    files = glob.glob(fNames)
+    files=sorted(files)
+    nfiles=len(files)
+    map=''
+    if nfiles==0: 
+        print " - no files found -- " 
+        return None
+    else: 
+        for i,f in enumerate(sorted(files)):
+            hdr = pyfits.getheader(f)
+            imtype=hdr.get('IMAGETYP')
+            nreads=hdr.get('NFRAMES')
+            if imtype=="Dark": map=map+"d"
+            elif imtype=="QuartzFlat": map=map+"q"
+            elif imtype=="InternalFlat": map=map+"i"
+            elif imtype=="DomeFlat": map=map+"m"
+            elif imtype=="ArcLamp" and nreads==12: map=map+"t" # Thar
+            elif imtype=="ArcLamp" and nreads==40: map=map+"u" # Une
+            elif imtype=="Object" : map=map+"o" 
+            else:
+               print "wrong image type" 
+               return None 
+        regex="dddqqqtutudiiid"
+        m = re.search(regex, map)
+        if m==None:
+            print "  no morning sequence found, exit"
+            return None
+        else:
+            print m.start(), m.end()
+            return files[m.start():m.end()]
+
 
 def getOffset(qrfile1):
     try :
@@ -68,13 +105,17 @@ def getOffset(qrfile1):
         return None 
     success, p1, x, spe, ref, fit =apogeeThar.OneFileFitting(data1, 150, p0)
     if success==5:
-        return " ? "
+        return " err"
     else:
         return "%4.1f" % (p1[1] - p0[0][1])
 
 # ......
-
-def getFlux(f, nreads, imtype):
+def getFlux(f):
+    hdr = pyfits.getheader(f)
+    nreads=hdr.get('NFRAMES')
+    imtype=hdr.get('IMAGETYP')
+    if imtype not in ["QuartzFlat","InternalFlat","DomeFlat"]:
+        return " - "
     dat = pyfits.getdata(f,0)/nreads
     dat=numpy.array(dat)
     y=1024;  x= 1024
@@ -84,8 +125,10 @@ def getFlux(f, nreads, imtype):
     elif imtype=="InternalFlat":  nrm=94.05
     elif imtype=="DomeFlat":  nrm=81.525
     else: nrm=None
-    if nrm != None:  return "%3i " % (med/nrm*100)
+    if nrm != None:  
+        return "%3i" % (med/nrm*100)
     else:  return " ? "
+
                     
 #...
 def  list_one_file(i,f,mjd):
@@ -139,11 +182,9 @@ def  list_one_file(i,f,mjd):
         pp="/data/apogee/archive/%s/apR-%s-%s.apz"%(mjd,l,f[33:41])
         if os.path.exists(pp): arc[2*k]=l 
     
-    flux=" -  "    
-    if ( hdr.get('IMAGETYP')=="QuartzFlat")  or \
-       ( hdr.get('IMAGETYP')=="InternalFlat") or \
-       ( hdr.get('IMAGETYP')=="DomeFlat"):
-            flux=getFlux(f,hdr.get('NFRAMES'),hdr.get('IMAGETYP'))
+    flux=" - "    
+    if hdr.get('IMAGETYP') in ["QuartzFlat","InternalFlat","DomeFlat"]:
+            flux=getFlux(f)
     
 # print information
     ss1="%3i "% (i+1)  #i
@@ -155,7 +196,7 @@ def  list_one_file(i,f,mjd):
     ss1=ss1+" %2s-%4s   " % (ct, plate)
     ss1=ss1+"%s "%"".join(arc)    # archive file existence
     ss1=ss1+"%4s " % (offset)  # offset
-    ss1=ss1+" %3s" % (flux)  # flux
+    ss1=ss1+" %3s " % (flux)  # flux
     
     comm=hdr["OBSCMNT"]
 #    if comm=="None": comm=" -*"
@@ -171,11 +212,14 @@ if __name__ == "__main__":
     parser.add_argument('-m', '--mjd', 
            help='enter mjd, default is current mjd',    
            default=int(sjd), type=int)
+
+    parser.add_argument('-morning', '--morning', action="store_true") 
+           
     args = parser.parse_args()    
     mjd=args.mjd
     
 #    bs=os.path.basename(sys.argv[0])
-    bs=os.path.abspath(sys.argv[0])
+#    bs=os.path.abspath(sys.argv[0])
 #    print  "# %s -m1 %s" % (bs, mjd)
         
     print "APOGEE data list,   mjd=%s" % mjd    
@@ -188,11 +232,21 @@ if __name__ == "__main__":
     print "   archive:  ", pparc
     
     files = glob.glob(fNames)
+    files = sorted(files)
+    nfiles=len(files)
+    if nfiles==0: 
+        print " - no files found -- " 
+        sys.exit(0)
+
+    if args.morning:
+        files=getMorningSequence(mjd)        
+        # add check result
+        nfiles=len(files)
     
     line="-"*80
     print line
     prc="%"
-    header=" i   UT   File/Exp   Imtype  Nread  Dth    Ct-Plate  Archiv Offset %sFlux Comment" % prc
+    header=" i   UT   File/Exp   Imtype  Nread  Dth    Ct-Plate Archiv Offset %sFlux Comment" % prc
     print header  
     print line 
     nfiles=len(files)
