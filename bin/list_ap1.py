@@ -107,7 +107,7 @@ def getOffset(qrfile1):
     if success==5:
         return " err"
     else:
-        return "%4.1f" % (p1[1] - p0[0][1])
+        return "%5.2f" % (p1[1] - p0[0][1])
 
 # ......
 def getFlux(f):
@@ -195,7 +195,7 @@ def  list_one_file(i,f,mjd):
     ss1=ss1+"%s " % (sdth)  # dither            
     ss1=ss1+" %2s-%4s   " % (ct, plate)
     ss1=ss1+"%s "%"".join(arc)    # archive file existence
-    ss1=ss1+"%4s " % (offset)  # offset
+    ss1=ss1+"%5s " % (offset)  # offset
     ss1=ss1+" %3s " % (flux)  # flux
     
     comm=hdr["OBSCMNT"]
