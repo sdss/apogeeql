@@ -94,10 +94,10 @@ def getMorningSequence(mjd):
             print "  no morning sequence found, exit"
             return None
         else:
-            print m.start(), m.end()
+          #  print m.start(), m.end()
             return files[m.start():m.end()]
 
-
+# ......
 def getOffset(qrfile1):
     try :
         data1 = pyfits.getdata(qrfile1,0)
@@ -109,6 +109,20 @@ def getOffset(qrfile1):
     else:
         return "%5.2f" % (p1[1] - p0[0][1])
 
+#----
+def getStd(f): 
+    hdr = pyfits.getheader(f)
+    nreads=hdr.get('NFRAMES')
+    dat = pyfits.getdata(f,0)/nreads
+    dat=numpy.array(dat)    
+    def ff(i, dat): 
+        y=1024;   x=i*2048+1024 
+        dat=dat[(y-200):(y+200),(x-100):(x+100)] 
+        return "%4.2f" % numpy.std(dat)
+#    return "(%s, %s, %s)" % (ff(0, dat), ff(1, dat), ff(2, dat))
+    return "%s" % (ff(2, dat))
+    
+    	
 # ......
 def getFlux(f):
     hdr = pyfits.getheader(f)
@@ -158,9 +172,9 @@ def  list_one_file(i,f,mjd):
     if plate==None: plate="----"
 
     dth= float(hdr['DITHPIX'])
-    if dth==12.994: sdth="A(%4.1f)" % dth
-    elif dth==13.499: sdth="B(%4.1f)" % dth
-    else: sdth="?(%4.1f)"% dth    
+    if dth==12.994: sdth="A-%4.1f" % dth
+    elif dth==13.499: sdth="B-%4.1f" % dth
+    else: sdth="?-%4.1f"% dth    
 
     imtype= hdr.get('IMAGETYP')
     offset=" - "
@@ -185,23 +199,29 @@ def  list_one_file(i,f,mjd):
     flux=" - "    
     if hdr.get('IMAGETYP') in ["QuartzFlat","InternalFlat","DomeFlat"]:
             flux=getFlux(f)
+
+    std="  - "
+#    print imtype, hdr.get('NFRAMES'), len(imtype)
+    if (imtype.strip(' \t\n\r') == "Dark") and (hdr.get('NFRAMES') == 60):
+            std=getStd(f)
     
 # print information
     ss1="%3i "% (i+1)  #i
     ss1=ss1+"%s  " % (hdr['DATE-OBS'][11:16]) # UT time
     ss1=ss1+"%s " % (f[33:41])  # exp number
-    ss1=ss1+"%s " % (imtype)  # image type
-    ss1=ss1+"%2i  " %  hdr.get('NFRAMES')  # nframes
-    ss1=ss1+"%s " % (sdth)  # dither            
-    ss1=ss1+" %2s-%4s   " % (ct, plate)
+    ss1=ss1+"%s" % (imtype)  # image type
+    ss1=ss1+"%2i " %  hdr.get('NFRAMES')  # nframes
+    ss1=ss1+" %s " % (sdth)  # dither            
+    ss1=ss1+" %2s-%4s  " % (ct, plate)
     ss1=ss1+"%s "%"".join(arc)    # archive file existence
     ss1=ss1+"%5s " % (offset)  # offset
-    ss1=ss1+" %3s " % (flux)  # flux
-    
+    ss1=ss1+"%3s " % (flux)  # flux
+    ss1=ss1+" %s " % (std)  # std        
     comm=hdr["OBSCMNT"]
-#    if comm=="None": comm=" -*"
-    ss1=ss1+ " %s" % comm[0:9] # comment
-    print ss1 #  ,len(ss1)
+    if comm  !="None": 
+        ss1=ss1+ "%s" % comm[0:8] # comment
+    print ss1 #, len(ss1)
+
 #...
 
 if __name__ == "__main__":
@@ -225,11 +245,11 @@ if __name__ == "__main__":
     print "APOGEE data list,   mjd=%s" % mjd    
     pp="/data/apogee/utr_cdr/"
     fNames="%s%s/apRaw-%s.fits"%(pp,mjd,"*")
-    print "   raw_data: ", fNames
+#    print "   raw_data: ", fNames
     ppqr="/data/apogee/quickred/%s/ap2D-a-*.fits.fz" % (mjd)
-    print "   quick_red:", ppqr
+#    print "   quick_red:", ppqr
     pparc="/data/apogee/archive/%s/apR-[a,b,c]-*.apz" % (mjd)
-    print "   archive:  ", pparc
+#    print "   archive:  ", pparc
     
     files = glob.glob(fNames)
     files = sorted(files)
@@ -241,12 +261,14 @@ if __name__ == "__main__":
     if args.morning:
         files=getMorningSequence(mjd)        
         # add check result
+        if files == None: 
+             sys.exit(0)
         nfiles=len(files)
     
     line="-"*80
     print line
     prc="%"
-    header=" i   UT   File/Exp   Imtype  Nread  Dth    Ct-Plate Archiv Offset %sFlux Comment" % prc
+    header=" i   UT   File/Exp   Imtype  Nread  Dth  Ct-Plate Arch Offset %sFlux Std Comm" % prc
     print header  
     print line 
     nfiles=len(files)
@@ -254,12 +276,11 @@ if __name__ == "__main__":
         print " - no files found -- " 
     else: 
         for i,f in enumerate(sorted(files)):
-         #    if (i)/15.0 == int((i)/15) and i!=0:
-         #         print line, "\n", header, "\n",line 
+             if (i)/15.0 == int((i)/15) and i!=0:
+                  print line, "\n", header, "\n",line 
              list_one_file(i,f, mjd) 
                   
     print line    
-    ss="    THAR offset=X0-%5.2f, pix " % (p0[0][1])
-    
-    print ss, "\n"
+ #   ss="    THAR offset=X0-%5.2f, pix " % (p0[0][1])
+ #   print ss, "\n"
 #...
