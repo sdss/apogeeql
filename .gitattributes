@@ -10,6 +10,7 @@ bin/list_ap1.py -text
 bin/plugmapm2a.py -text
 bin/readme.txt -text
 bin/talk2ql.py -text
+bin/test_list_ap1.py -text
 etc/apogeeql.cfg -text
 python/apogeeql/1m/CallEditFitsFunc.py -text
 python/apogeeql/1m/StatFunc1m.py -text
