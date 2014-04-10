@@ -79,7 +79,7 @@ def darkOneMjd(mjd):
     fNames="/data/apogee/utr_cdr/%s/apRaw-%s.fits"%(mjd,"*")
     files = glob.glob(fNames)
     if len(files)==0: 
-        print "%s " % (mjd)
+        print "%s  - no files for this mjd " % (mjd)
       #  sys.exit(" - no files found -- ")
         return 
 
@@ -87,6 +87,7 @@ def darkOneMjd(mjd):
     map=getMap(files)
     morning_files=getMorning(map,files)
     if morning_files == None:
+         print  "%s - no morning sequence " % (mjd)
          return 
     mm1=morning_files[1]
     mm2=morning_files[2]
@@ -119,20 +120,16 @@ def main(argv=None):
     mjd2= args.mjd2;  
     if mjd2==None:  mjd2=mjd 
         
-    if mjd > mjd2: 
-        mjds=range(mjd2, mjd+1)
-    else:
-        mjds=range(mjd, mjd2+1)
-        
-    
+    if mjd > mjd2:
+        dd=mjd; mjd=mjd2;  mjd2=dd;
+            
     print "APOGEE Dark noises"     
     separator="#%s" % ("-"*79)
     print(separator)
     print "#mjd  Exp1      Exp2  %s%s%s%s%s%s" % (" "*5,"Chip A"," "*16,"Chip B"," "*16,"Chip C")
 
-    for m in  mjds:
+    for m in  range(mjd, mjd2+1):
         darkOneMjd(m)
-
     print(separator)
     
         
