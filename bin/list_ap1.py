@@ -35,8 +35,8 @@ History 2013:
     to 4.1f (it was  5.2f). 
 
 01/09/2014 Added column with  normed flux for all three flats.  
-test: 
-./list_ap1.py -m 56721 -morning
+       test:  ./list_ap1.py -m 56721 -morning
+June/19  added special list for dither analysis  
 
 """
 
@@ -65,6 +65,7 @@ dither='t'*17
 
 ditherA=0
 regex=""
+
 
 #------------------------
 def curSjd():
@@ -173,9 +174,7 @@ def getFlux(f):
     else:  return " ? "
 
                     
-#...
-
-def  list_one_file(i,f,mjd):
+def  list_one_file(i,f,mjd, dither1=False):
     path="/data/apogee/quickred/%s" % mjd
     fexp=f[33:41]
     qrfile1="%s/ap1D-a-%s.fits.fz" % (path,fexp)
@@ -205,11 +204,6 @@ def  list_one_file(i,f,mjd):
     if dth==12.994: sdth="A  %4.1f" % dth
     elif dth==13.499: sdth="B  %4.1f" % dth
     else: sdth="?  %4.1f"% dth 
-    if (regex==dither):
-         global ditherA
-         if i==0: 
-             ditherA=dth
-         diffDither= dth - ditherA
         
     imtype= hdr.get('IMAGETYP')
     offset=" - "
@@ -244,24 +238,38 @@ def  list_one_file(i,f,mjd):
     ss1="%s %3i "% (mjd, i+1)  #i
     ss1=ss1+"%s  " % (hdr['DATE-OBS'][11:16]) # UT time
     ss1=ss1+"%s " % (f[33:41])  # exp number
-    ss1=ss1+"%s" % (imtype)  # image type
-    ss1=ss1+"%2i " %  hdr.get('NFRAMES')  # nframes
-    ss1=ss1+" %s " % (sdth)  # dither            
-    ss1=ss1+" %2s-%4s  " % (ct, plate)
-    ss1=ss1+"%s "%"".join(arc)    # archive file existence
-    ss1=ss1+"%5s " % (offset)  # offset
-    ss1=ss1+"%3s " % (flux)  # flux
- #   ss1=ss1+" %s " % (std)  # std        
-    comm=hdr["OBSCMNT"]
-    if comm  !="None": 
-        ss1=ss1+ " %s" % comm[0:8] # comment
-    if (regex==dither):
-        ss1=ss1+" %5.2f" % diffDither
+    
+    if dither1:
+        ss1=ss1+" %s " % (sdth)  # dither            
+        ss1=ss1+" %5s " % (offset)  # offset
+        dDth=[0,-2,0,+2,0,-4, 0,+4,0,-3,0,2,0,-1,0,0.5,0]
+        ss1=ss1+"%5s " % (dDth[i])
+        global ditherA
+        if i==0:  
+            ditherA=dth
+        dd=float(dth - ditherA)
+      #  print dd
+        ss1=ss1+"    %5.2f" % (dd)
+        ss1=ss1+"    %5.2f" % (dDth[i]-dd)        
+    else: 
+        ss1=ss1+"%s" % (imtype)  # image type
+        ss1=ss1+"%2i " %  hdr.get('NFRAMES')  # nframes
+        ss1=ss1+" %s " % (sdth)  # dither            
+        ss1=ss1+" %2s-%4s  " % (ct, plate)
+        ss1=ss1+"%s "%"".join(arc)    # archive file existence
+        ss1=ss1+"%5s " % (offset)  # offset
+        ss1=ss1+"%3s " % (flux)  # flux
+        #   ss1=ss1+" %s " % (std)  # std        
+        comm=hdr["OBSCMNT"]
+        if comm  !="None": 
+            ss1=ss1+ " %s" % comm[0:8] # comment
+#    if (regex==dither):
+#        ss1=ss1+" %5.2f" % diffDither
     
     print ss1 #, len(ss1)
 
 
-def  list_one_mjd(mjd):
+def  list_one_mjd(mjd, args):
 #    bs=os.path.basename(sys.argv[0])
 #    bs=os.path.abspath(sys.argv[0])
 #    print  "# %s -m1 %s" % (bs, mjd)
@@ -292,31 +300,33 @@ def  list_one_mjd(mjd):
         files1.append(fItem)
 
     files=files1
+    dither1=False
 
     if args.morning or args.evening or args.dither:
         map=getMap(files)
         if args.morning: regex=morning
         elif args.evening:  regex=evening
-        elif args.dither:  regex=dither; 
+        elif args.dither:  
+            regex=dither
+            dither1=True 
         else:   sys.exit("  error: 1")   
         mapRange=getSequence(map, regex)
         if mapRange==None:
-            print  "  no sequence found, exit"
+            print  "  no sequence found"
             return              
     #    print mapRange[0], mapRange[1]
         files=files[mapRange[0]:mapRange[1]]
     #    print len(files)    
-                    
+                            
     for i,f in enumerate(sorted(files)):
         if not os.path.isfile(f):
             ss1="%s %3i"% (mjd, i+1)  #i
             print "%s      no file found:  %s " % (ss1, f)
             continue
-        list_one_file(i,f, mjd)   
-#--------------
+        list_one_file(i,f, mjd, dither1)   
 
-if __name__ == "__main__":
-
+def main(): 
+ #   print ("my_test =====")
     sjd=curSjd()
     desc = 'list of files for one night of apogee observations'
     parser = argparse.ArgumentParser(description=desc)
@@ -333,15 +343,24 @@ if __name__ == "__main__":
     if mjd2 < mjd:
         dd=mjd; mjd=mjd2; mjd2=dd
     
+    if args.morning: request="morning"
+    elif args.evening: request="evening"
+    elif args.dither:  request="dither"
+    else: request="all"
     
-    line="-"*80;  prc="%"
-#    header=" i   UT   File/Exp   Imtype  Nread  Dth  Ct-Plate Arch Offset %sFlux Std Comm" % prc
-    header="mjd     i   UT   File/Exp  Imtype Nread A/B Dth  Ct-Plate Arch Offset %sFlux Comm" % prc
+    prc="%"
+    if request=="dither":
+        line="-"*67
+        header="mjd     i   UT   File/Exp  A/B Dth  Offset Command   Moved   Error" 
+    else:
+        line="-"*80 
+        # header=" i   UT   File/Exp   Imtype  Nread  Dth  Ct-Plate Arch Offset %sFlux Std Comm" % prc
+        header="mjd     i   UT   File/Exp  Imtype Nread A/B Dth  Ct-Plate Arch Offset %sFlux Comm" % prc
 
     for m in range(mjd, mjd2+1):
         pp="/data/apogee/utr_cdr/"
         fNames="%s%s/apRaw-%s.fits"%(pp,m,"*")   # raw data
-        print "APOGEE data list,   mjd=%s" % m  
+        print "APOGEE data list,   mjd=%s,  %s" % (m, request)  
         print "raw_data: ", fNames  
         print line, "\n",  header, "\n", line        
         files=getFiles(fNames)
@@ -349,5 +368,9 @@ if __name__ == "__main__":
              print " - no files found  for this mjd  %s-- " % m 
              print line, "\n" 
              continue
-        list_one_mjd(m)
+        list_one_mjd(m, args)
         print line, "\n" 
+        
+if __name__ == "__main__":
+    sys.exit(main())
+        
