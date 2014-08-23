@@ -5,12 +5,9 @@ from twisted.protocols.basic import LineReceiver
 from twisted.internet import reactor
 from twisted.internet.protocol import Protocol, Factory
 
-# the APOTestDatabaseconnection will make version v1_0_6 of platedb
-# work (with the new hooloovookit stuff) - requires version v1_0_6 of later
-# from platedb.APOTestDatabaseConnection import db
-from platedb.APODatabaseConnection import db
-from platedb.ModelClasses import *
-from catalogdb.ModelClasses import *
+from sdss.internal.database.connections.APODatabaseAdminLocalConnection import db # access to engine, metadata, Session
+from sdss.internal.database.apo.platedb.ModelClasses import *
+from sdss.internal.database.apo.catalogdb.ModelClasses import *
 
 import opscore.actor.model
 import opscore.actor.keyvar

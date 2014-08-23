@@ -22,27 +22,27 @@ import types
 import string
 
 try:
-    from platedb.APODatabaseConnection import db # access to engine, metadata, Session
+    from sdss.internal.database.connections.APODatabaseUserLocalConnection import db # access to engine, metadata, Session
 except ImportError:
-    print 'Error on import - did you "setup platedb" and "setup hooloovookit" before running this script??\n'
+    print 'Error on import - did you "setup sdss_python_module" before running this script??\n'
     sys.exit(1)
 
 try:
     print "Importing PlateDB"
-    from platedb.ModelClasses import *
+    from sdss.internal.database.apo.platedb.ModelClasses import *
     print "Importing CatalogDB"
-    from catalogdb.ModelClasses import *
+    from sdss.internal.database.apo.catalogdb.ModelClasses import *
 except ImportError:
-    print 'Could not find the platedb product - did you "setup platedb" before running this script??\n'
+    print 'Could not find the platedb product - did you "setup sdss_python_module" before running this script??\n'
     try:
-        db  
+        db
     except:
         db.engine.dispose() # avoid "unexpected EOF on client connection" on db server
     sys.exit(1)
 
 import sqlalchemy
-from sqlalchemy import not_, and_, or_ 
-import yanny
+from sqlalchemy import not_, and_, or_
+from sdss.utilities import yanny
 
 import pyfits
 import traceback
