@@ -1,7 +1,6 @@
 setupRequired(actorcore)
-setupRequired(yannytools)
 setupRequired(apgquicklook)
-setupRequired(platedb)
+setupRequired(sdss_python_module)
 
 pathPrepend(PATH, ${PRODUCT_DIR}/bin)
 pathPrepend(PYTHONPATH, ${PRODUCT_DIR}/python)
