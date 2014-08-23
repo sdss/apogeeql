@@ -11,8 +11,7 @@ Usage: Specify the plateId, fscan_mjd, fscan_id
 
 Script prerequisites:
 ---------------------
-setup platedb
-setup hooloovookit
+setup sdss_python_module
 """
 
 import os
@@ -33,7 +32,7 @@ try:
     print "Importing CatalogDB"
     from sdss.internal.database.apo.catalogdb.ModelClasses import *
 except ImportError:
-    print 'Could not find the platedb product - did you "setup sdss_python_module" before running this script??\n'
+    print 'Could not create ModelClasses - did you "setup sdss_python_module" before running this script??\n'
     try:
         db
     except:
