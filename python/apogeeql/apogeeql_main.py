@@ -27,7 +27,7 @@ import logging
 import os, signal, subprocess, tempfile, shutil, glob
 import time
 import types
-import yanny
+from sdss.utilities import yanny
 import RO.Astro.Tm.MJDFromPyTuple as astroMJD
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
