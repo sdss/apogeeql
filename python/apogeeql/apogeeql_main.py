@@ -275,11 +275,11 @@ class Apogeeql(actorcore.Actor.Actor):
       plate = 4929
       pointing = 'A'
       """
- 
+
       # print Apogeeql.actor.models['platedb'].keyVarDict['activePlugging']
 
-      # find the plateIddb.survey.pk corresponding to APOGEE
-      survey=Apogeeql.actor.mysession.query(Survey).filter(Survey.label=='APOGEE')
+      # find the platedb.survey.pk corresponding to APOGEE (-2)
+      survey = Apogeeql.actor.mysession.query(Survey).filter(Survey.label=='APOGEE-2')
       if survey.count() > 0:
          Apogeeql.actor.apogeeSurveyPk = survey[0].pk
 
