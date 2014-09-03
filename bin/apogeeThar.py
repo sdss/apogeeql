@@ -24,11 +24,13 @@ History:
 09/30/2013: EM:   use quick-red instead of instead of raw data; 
    reorganized output for differences only, 3-lines and 3 rows output, 
    designed for night log. 
+09/02/2014  switchehd to sdss-4,  needed more libraries, commented 
+    matplotlib for a while until installed.
        
  '''
 import argparse
 import pyfits, numpy, scipy
-from pylab import *
+#from pylab import *
 import scipy.optimize
 import sys, os.path, glob
 import time
