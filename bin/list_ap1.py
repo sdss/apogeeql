@@ -37,6 +37,15 @@ History 2013:
 01/09/2014 Added column with  normed flux for all three flats.  
        test:  ./list_ap1.py -m 56721 -morning
 June/19  added special list for dither analysis  
+   possible tests: 
+   list_ap1.py -m 56803 -dither
+   list_ap1.py -m 56803
+   list_ap1.py -m 56803 -evening
+   list_ap1.py -m 56803 -morning
+
+Sept, 08, 2014  changes A.B dithers settings: 
+   A 13.0 --> 10.0
+   B 13.5 --> 10.5
 
 """
 
@@ -201,8 +210,13 @@ def  list_one_file(i,f,mjd, dither1=False):
     if plate==None: plate="----"
 
     dth= float(hdr['DITHPIX'])
-    if dth==12.994: sdth="A  %4.1f" % dth
-    elif dth==13.499: sdth="B  %4.1f" % dth
+    dth=round(dth, 1)
+    
+#    if dth==12.994: sdth="A  %4.1f" % dth
+#    elif dth==13.499: sdth="B  %4.1f" % dth
+#    else: sdth="?  %4.1f"% dth 
+    if dth==10.0: sdth="A  %4.1f" % dth
+    elif dth==10.5: sdth="B  %4.1f" % dth
     else: sdth="?  %4.1f"% dth 
         
     imtype= hdr.get('IMAGETYP')
@@ -360,8 +374,14 @@ def main():
     for m in range(mjd, mjd2+1):
         pp="/data/apogee/utr_cdr/"
         fNames="%s%s/apRaw-%s.fits"%(pp,m,"*")   # raw data
+        fArch="/data/apogee/archive/%s/apR-[a,b,c]-*.apz" % (mjd)  # archive
+        fReduct="/data/apogee/quickred/%s/ap2D-a-*.fits.fz" % (mjd)  # quickred
         print "APOGEE data list,   mjd=%s,  %s" % (m, request)  
         print "raw_data: ", fNames  
+        print "archive: ", fArch  
+        print "quickred: ", fArch  
+        
+        
         print line, "\n",  header, "\n", line        
         files=getFiles(fNames)
         if len(files)==0: 
