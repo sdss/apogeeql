@@ -284,10 +284,10 @@ class Apogeeql(actorcore.Actor.Actor):
          Apogeeql.actor.apogeeSurveyPk = survey[0].pk
 
       if plate != Apogeeql.prevPlate or cartridge != Apogeeql.prevCartridge or pointing != Apogeeql.prevPointing:
-         # we need to ignore all plates that are not for APOGEE or MARVELS
+         # we need to ignore all plates that are not for APOGEE or MANGA
          survey=Apogeeql.actor.mysession.query(Survey).join(PlateToSurvey).join(Plate).filter(Plate.plate_id==plate)
          if survey.count() > 0:
-              if survey[0].label.upper().find("APOGEE") == -1 and survey[0].label.upper().find("MARVELS") == -1:
+              if survey[0].label.upper().find("APOGEE") == -1 and survey[0].label.upper().find("MANGA") == -1:
                   # not an apogee or marvels plate - just skip
                   return
 
@@ -897,12 +897,12 @@ class Apogeeql(actorcore.Actor.Actor):
    def getObservationPk(self, mjd):
        """Insert a new row in the platedb.observation table if needed"""
 
-       # make sure the currently loaded plate is from APOGEE/MARVELS
+       # make sure the currently loaded plate is from APOGEE/MANGA
        survey = self.mysession.query(Survey).join(PlateToSurvey).join(Plate).filter(Plate.plate_id==self.prevPlate)
 
        if survey.count() >= 1:
-          if (survey[0].label).upper().find('APOGEE') >= 0 or (survey[0].label).upper().find('MARVELS') >= 0:
-             # a MARVELS / APOGEE plate
+          if (survey[0].label).upper().find('APOGEE') >= 0 or (survey[0].label).upper().find('MANGA') >= 0:
+             # a MANGA / APOGEE plate
              # get the plate_pointing_pk from the database
              platePointing=self.mysession.query(PlatePointing).filter(PlatePointing.pointing_name==self.prevPointing).\
                    join(Plate).filter(Plate.plate_id==self.prevPlate)
