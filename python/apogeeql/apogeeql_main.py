@@ -224,7 +224,7 @@ class Apogeeql(actorcore.Actor.Actor):
       #
       self.models = {}
       # for actor in ["mcp", "guider", "platedb", "tcc", "apo", "apogeetest"]:
-      for actor in ["mcp", "guider", "platedb", "tcc", "apogee", "apogeecal"]:
+      for actor in ["mcp", "guider", "platedb", "tcc", "apogee", "apogeecal", "sop"]:
          self.models[actor] = opscore.actor.model.Model(actor)
 
       #
