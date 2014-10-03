@@ -9,6 +9,8 @@ from sdss.internal.database.connections.APODatabaseAdminLocalConnection import d
 from sdss.internal.database.apo.platedb.ModelClasses import *
 from sdss.internal.database.apo.catalogdb.ModelClasses import *
 
+import sqlalchemy
+
 import opscore.actor.model
 import opscore.actor.keyvar
 
@@ -420,7 +422,7 @@ class Apogeeql(actorcore.Actor.Actor):
          
          try:
              Apogeeql.obs_pk = Apogeeql.actor.getObservationPk(mjd)
-         except InvalidRequestError as e:
+         except sqlalchemy.exc.InvalidRequestError as e:
              Apogeeql.actor.logger.error('Failed to call getObservationPk for %d'%mjd)
              Apogeeql.actor.logger.error('Exception: %s'%e)
              raise e
