@@ -46,6 +46,7 @@ June/19  added special list for dither analysis
 Sept, 08, 2014  changes A.B dithers settings: 
    A 13.0 --> 10.0
    B 13.5 --> 10.5
+Oct,15, 2014  removed changes on Sept, 08, 2014
 
 """
 
@@ -210,14 +211,15 @@ def  list_one_file(i,f,mjd, dither1=False):
     if plate==None: plate="----"
 
     dth= float(hdr['DITHPIX'])
-    dth=round(dth, 1)
     
-#    if dth==12.994: sdth="A  %4.1f" % dth
-#    elif dth==13.499: sdth="B  %4.1f" % dth
-#    else: sdth="?  %4.1f"% dth 
-    if dth==10.0: sdth="A  %4.1f" % dth
-    elif dth==10.5: sdth="B  %4.1f" % dth
+    if dth==12.994: sdth="A  %4.1f" % dth
+    elif dth==13.499: sdth="B  %4.1f" % dth
     else: sdth="?  %4.1f"% dth 
+
+    #dth=round(dth, 1)
+  #  if dth==10.0: sdth="A  %4.1f" % dth
+  #  elif dth==10.5: sdth="B  %4.1f" % dth
+  #  else: sdth="?  %4.1f"% dth 
         
     imtype= hdr.get('IMAGETYP')
     offset=" - "
