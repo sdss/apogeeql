@@ -7,7 +7,7 @@ from twisted.internet.protocol import Protocol, Factory
 
 from sdss.internal.database.connections.APODatabaseAdminLocalConnection import db # access to engine, metadata, Session
 from sdss.internal.database.apo.platedb.ModelClasses import *
-from sdss.internal.database.apo.catalogdb.ModelClasses import *
+from sdss.apogee.addExposure import addExposure
 
 import sqlalchemy
 
@@ -31,6 +31,8 @@ import time
 import types
 from sdss.utilities import yanny
 import RO.Astro.Tm.MJDFromPyTuple as astroMJD
+
+
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
@@ -418,6 +420,7 @@ class Apogeeql(actorcore.Actor.Actor):
 
       if readnum == 1 or Apogeeql.exp_pk == 0:
          # get the corresponding platedb.observation.pk (creating a new one if necessary)
+         ''' 
          survey = Apogeeql.actor.mysession.query(Survey).join(PlateToSurvey).join(Plate).filter(Plate.plate_id==Apogeeql.prevPlate)
          
          try:
@@ -429,6 +432,21 @@ class Apogeeql(actorcore.Actor.Actor):
 
          # insert a new entry in the platedb.exposure table (one per UTR exposure)
          Apogeeql.exp_pk = Apogeeql.actor.getExposurePk(Apogeeql.obs_pk, expnum, starttime, exptime)
+         '''
+
+
+#NEW CODE
+
+         #Create new exposure object
+         try:
+             Apogeeql.exp_pk = addExposure(Apogeeql.actor.mysession, Apogeeql.prevScanId, Apogeeql.prevScanMJD, 
+                                           Apogeeql.prevPlate, mjd, expnum, starttime, exptime, Apogeeql.expType, 'apogeeQL')
+         except RuntimeError as e:
+             Apogeeql.actor.logger.error('Failed in call addExposure for exposureNo %d' %expnum)
+             Apogeeql.actor.logger.error('Exception: %s'%e)
+             raise RuntimeError('Failed in call addExposure for exposureNo %d' %expnum +'\n'+str(e))
+
+#/NEW CODE
 
          # print 'Apogeeql.obs_pk=',Apogeeql.obs_pk
          # print 'Apogeeql.exp_pk=',Apogeeql.exp_pk
@@ -833,9 +851,9 @@ class Apogeeql(actorcore.Actor.Actor):
           p0['PLUGMAPOBJ']['tmass_style'].append('-')
 
        # get the needed information from the plate_hole 
-       ph = self.mysession.query(Fiber).join(PlateHole).join(CatalogObject).\
+       ph = self.mysession.query(Fiber).join(PlateHole).\
              filter(Fiber.pl_plugmap_m_pk==plugmap.pk).order_by(Fiber.fiber_id).\
-             values('fiber_id','j','h','ks','tmass_style_id','apogee_target1','apogee_target2')
+             values('fiber_id','tmass_j','tmass_h','tmass_k','apogee_target1','apogee_target2')
                          
        # we'll use the target1 and target2 to define the type of target
        # these are 32 bits each with each bit indicating a type
@@ -845,7 +863,8 @@ class Apogeeql(actorcore.Actor.Actor):
        starmask = skymask | hotmask
 
        # loop through the list and update the PLUGMAPOBJ
-       for fid, j_mag, h_mag, k_mag, tmass_style, t1, t2 in ph:
+       tmass_style = 'Unknown'
+       for fid, j_mag, h_mag, k_mag, t1, t2 in ph:
           count = p0['PLUGMAPOBJ']['fiberId'].count(fid)
           if count >= 1:
               # we have more than one entry for this fiberId -> get the APOGEE 
@@ -895,7 +914,7 @@ class Apogeeql(actorcore.Actor.Actor):
  
        return 
 
-
+   ''' *** DEPRECATED ***
    def getObservationPk(self, mjd):
        """Insert a new row in the platedb.observation table if needed"""
 
@@ -964,6 +983,7 @@ class Apogeeql(actorcore.Actor.Actor):
        self.mysession.add(new_exp)
        self.mysession.commit()
        return new_exp.pk
+   '''
 
    def getCalibBoxStatus(self):
        """Insert a new row in the platedb.exposure table """

@@ -1,12 +1,11 @@
 #!/usr/bin/env python
 """
 This script will transform a plPlugMapM file to a plPlugMapA file for
-APOGEE, adding the 2-Mass JHK magnitudes and 2-MAS target name to the
-table.
+APOGEE, adding the 2-Mass JHK magnitudes to the table.
 
-Usage: Specify the plateId, fscan_mjd, fscan_id
+Usage: Specify the plateId
 
-    plugmapm2a.py -p 4385 -m 55752 -s 1
+    plugmapm2a.py -p 4385
 
 
 Script prerequisites:
@@ -29,8 +28,6 @@ except ImportError:
 try:
     print "Importing PlateDB"
     from sdss.internal.database.apo.platedb.ModelClasses import *
-    print "Importing CatalogDB"
-    from sdss.internal.database.apo.catalogdb.ModelClasses import *
 except ImportError:
     print 'Could not create ModelClasses - did you "setup sdss_python_module" before running this script??\n'
     try:
@@ -76,7 +73,7 @@ def makeApogeePlugMap(mysession, plugmap, newfilename):
    # get the needed information from the plate_hole 
    ph = mysession.query(Fiber).join(PlateHole).join(CatalogObject).\
          filter(Fiber.pl_plugmap_m_pk==plugmap.pk).order_by(Fiber.fiber_id).\
-         values('fiber_id','j','h','ks','tmass_style_id','apogee_target1','apogee_target2')
+         values('fiber_id','tmass_j','tmass_h','tmass_k','apogee_target1','apogee_target2')
                      
    # we'll use the target1 and target2 to define the type of target
    # these are 32 bits each with each bit indicating a type
@@ -88,7 +85,7 @@ def makeApogeePlugMap(mysession, plugmap, newfilename):
    # import pdb;  pdb.set_trace()
 
    # loop through the list and update the PLUGMAPOBJ
-   for fid, j_mag, h_mag, k_mag, tmass_style, t1, t2 in ph:
+   for fid, j_mag, h_mag, k_mag, t1, t2 in ph:
       count = p0['PLUGMAPOBJ']['fiberId'].count(fid)
       if count >= 1:
           # we have more than one entry for this fiberId -> get the APOGEE 
@@ -105,7 +102,7 @@ def makeApogeePlugMap(mysession, plugmap, newfilename):
               p0['PLUGMAPOBJ']['mag'][ind][0] = j_mag
               p0['PLUGMAPOBJ']['mag'][ind][1] = h_mag
               p0['PLUGMAPOBJ']['mag'][ind][2] = k_mag
-              p0['PLUGMAPOBJ']['tmass_style'][ind] = tmass_style
+              p0['PLUGMAPOBJ']['tmass_style'][ind] = 'Unknown'
               if (t2 & skymask) > 0:
                  p0['PLUGMAPOBJ']['objType'][ind] = 'SKY'
               elif (t2 & hotmask) > 0:
