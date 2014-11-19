@@ -71,7 +71,7 @@ def makeApogeePlugMap(mysession, plugmap, newfilename):
       p0['PLUGMAPOBJ']['tmass_style'].append('-')
 
    # get the needed information from the plate_hole 
-   ph = mysession.query(Fiber).join(PlateHole).join(CatalogObject).\
+   ph = mysession.query(Fiber).join(PlateHole).\
          filter(Fiber.pl_plugmap_m_pk==plugmap.pk).order_by(Fiber.fiber_id).\
          values('fiber_id','tmass_j','tmass_h','tmass_k','apogee_target1','apogee_target2')
                      
@@ -82,9 +82,8 @@ def makeApogeePlugMap(mysession, plugmap, newfilename):
    extmask = 1024
    starmask = skymask | hotmask
 
-   # import pdb;  pdb.set_trace()
-
    # loop through the list and update the PLUGMAPOBJ
+   tmass_style = 'Unknown'
    for fid, j_mag, h_mag, k_mag, t1, t2 in ph:
       count = p0['PLUGMAPOBJ']['fiberId'].count(fid)
       if count >= 1:
@@ -97,12 +96,12 @@ def makeApogeePlugMap(mysession, plugmap, newfilename):
                   break
 
           # print "fid=%d    t1=%d   t2=%d" % (fid,t1,t2)
-          # only modify the fibers for APOGEE (2)
-          if p0['PLUGMAPOBJ']['spectrographId'][ind] == 2:
+          # only modify the fibers for APOGEE (2) that are not sky fibers
+          if p0['PLUGMAPOBJ']['spectrographId'][ind] == 2 and p0['PLUGMAPOBJ']['objType'][ind] != 'SKY':
               p0['PLUGMAPOBJ']['mag'][ind][0] = j_mag
               p0['PLUGMAPOBJ']['mag'][ind][1] = h_mag
               p0['PLUGMAPOBJ']['mag'][ind][2] = k_mag
-              p0['PLUGMAPOBJ']['tmass_style'][ind] = 'Unknown'
+              p0['PLUGMAPOBJ']['tmass_style'][ind] = tmass_style
               if (t2 & skymask) > 0:
                  p0['PLUGMAPOBJ']['objType'][ind] = 'SKY'
               elif (t2 & hotmask) > 0:

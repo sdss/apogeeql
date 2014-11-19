@@ -409,6 +409,11 @@ class Apogeeql(actorcore.Actor.Actor):
       # create a new FITS file by appending the telescope fits keywords
       newfilename, starttime, exptime = Apogeeql.appendFitsKeywords(Apogeeql.actor,filename)
 
+      #Don't create a new exposure if the exposure is not an APOGEE or MANGA object
+      if Apogeeql.prevPlate == -1:
+         print "exposureWroteFileCB  -> Not an APOGEE/MANGA Object"
+         return
+
       # get the mjd from the filename
       res=filename.split('-')
       try:
@@ -419,23 +424,6 @@ class Apogeeql(actorcore.Actor.Actor):
          raise RuntimeError( "The filename doesn't match expected format (%s)" % (filename)) 
 
       if readnum == 1 or Apogeeql.exp_pk == 0:
-         # get the corresponding platedb.observation.pk (creating a new one if necessary)
-         ''' 
-         survey = Apogeeql.actor.mysession.query(Survey).join(PlateToSurvey).join(Plate).filter(Plate.plate_id==Apogeeql.prevPlate)
-         
-         try:
-             Apogeeql.obs_pk = Apogeeql.actor.getObservationPk(mjd)
-         except sqlalchemy.exc.InvalidRequestError as e:
-             Apogeeql.actor.logger.error('Failed to call getObservationPk for %d'%mjd)
-             Apogeeql.actor.logger.error('Exception: %s'%e)
-             raise e
-
-         # insert a new entry in the platedb.exposure table (one per UTR exposure)
-         Apogeeql.exp_pk = Apogeeql.actor.getExposurePk(Apogeeql.obs_pk, expnum, starttime, exptime)
-         '''
-
-
-#NEW CODE
 
          #Create new exposure object
          try:
@@ -446,13 +434,6 @@ class Apogeeql(actorcore.Actor.Actor):
              Apogeeql.actor.logger.error('Exception: %s'%e)
              raise RuntimeError('Failed in call addExposure for exposureNo %d' %expnum +'\n'+str(e))
 
-#/NEW CODE
-
-         # print 'Apogeeql.obs_pk=',Apogeeql.obs_pk
-         # print 'Apogeeql.exp_pk=',Apogeeql.exp_pk
-
-         # Apogeeql.actor.logger.info('Apogeeql.obs_pk = %d' % (Apogeeql.obs_pk))
-         # Apogeeql.actor.logger.info('Apogeeql.exp_pk = %d' % (Apogeeql.exp_pk))
 
       for s in Apogeeql.qlSources:
          s.sendLine('UTR=%s,%d,%d,%d' % (newfilename, Apogeeql.exp_pk, readnum, Apogeeql.numReadsCommanded))
@@ -865,8 +846,8 @@ class Apogeeql(actorcore.Actor.Actor):
        # loop through the list and update the PLUGMAPOBJ
        tmass_style = 'Unknown'
        for fid, j_mag, h_mag, k_mag, t1, t2 in ph:
-          count = p0['PLUGMAPOBJ']['fiberId'].count(fid)
-          if count >= 1:
+           count = p0['PLUGMAPOBJ']['fiberId'].count(fid)
+           if count >= 1:
               # we have more than one entry for this fiberId -> get the APOGEE 
               ind = -1
               for i in range(count):
@@ -875,9 +856,9 @@ class Apogeeql(actorcore.Actor.Actor):
                   if p0['PLUGMAPOBJ']['spectrographId'][ind] == 2:
                       break
 
-              # print "fid=%d    t1=%d   t2=%d" % (fid,t1,t2)
-              # only modify the fibers for APOGEE (2)
-              if p0['PLUGMAPOBJ']['spectrographId'][ind] == 2:
+                 # print "fid=%d    t1=%d   t2=%d" % (fid,t1,t2)
+                 # only modify the fibers for APOGEE (2) that are not sky fibers
+              if p0['PLUGMAPOBJ']['spectrographId'][ind] == 2 and p0['PLUGMAPOBJ']['objType'][ind] != 'SKY':
                   if not (j_mag and h_mag and k_mag):
                       #cmd.warn('text="some IR mags are bad: j=%s h=%s k=%s"' % (j_mag, h_mag, k_mag))
                       logging.warn('text="some IR mags are bad: j=%s h=%s k=%s"' % (j_mag, h_mag, k_mag))
@@ -892,7 +873,7 @@ class Apogeeql(actorcore.Actor.Actor):
                   elif (t1 & extmask) > 0:
                      p0['PLUGMAPOBJ']['objType'][ind] = 'EXTOBJ'
                   elif (t2 & starmask) == 0 and (t1 & extmask) ==0:
-                     p0['PLUGMAPOBJ']['objType'][ind] = 'STAR'
+                    p0['PLUGMAPOBJ']['objType'][ind] = 'STAR'
         
        # delete file if it already exists
        if os.path.isfile(newfilename):
@@ -913,77 +894,6 @@ class Apogeeql(actorcore.Actor.Actor):
        p0.write(archivefile)
  
        return 
-
-   ''' *** DEPRECATED ***
-   def getObservationPk(self, mjd):
-       """Insert a new row in the platedb.observation table if needed"""
-
-       # make sure the currently loaded plate is from APOGEE/MANGA
-       survey = self.mysession.query(Survey).join(PlateToSurvey).join(Plate).filter(Plate.plate_id==self.prevPlate)
-
-       if survey.count() >= 1:
-          if (survey[0].label).upper().find('APOGEE') >= 0 or (survey[0].label).upper().find('MANGA') >= 0:
-             # a MANGA / APOGEE plate
-             # get the plate_pointing_pk from the database
-             platePointing=self.mysession.query(PlatePointing).filter(PlatePointing.pointing_name==self.prevPointing).\
-                   join(Plate).filter(Plate.plate_id==self.prevPlate)
-             if platePointing.count() != 1:
-                 # found more than one entry for the plate_pointing
-                 raise RuntimeError(\
-                       "Found more than one platedb.plate_pointing for plate %d and pointing %s" % \
-                       (plate, pointing))
-             # see if a matching entry in the observation table exists
-             platePointing = platePointing[0]
-             observation=self.mysession.query(Observation).filter(Observation.plate_pointing_pk==platePointing.pk).\
-                   filter(Observation.plugging_pk==self.pluggingPk).filter(Observation.mjd==mjd)
-
-             if observation.count() == 0:
-                # no observation entry found -> create one (start a new observation)
-                self.mysession.begin()
-                new_obs=Observation()
-                new_obs.mjd=mjd
-                new_obs.plate_pointing_pk = platePointing.pk
-                new_obs.plugging_pk = self.pluggingPk
-                new_obs.comment = "apogeeQL"
-                self.mysession.add(new_obs)
-                self.mysession.commit()
-                return new_obs.pk
-             elif observation.count() == 1:
-                # return the primary of the entry in the platedb.observation table
-                return observation[0].pk
-             else: 
-                # we found more than one entry
-                 raise RuntimeError("Found more than one entry in the observation table")
-
-       # create a new entry in the observation table without an associated plugging
-       self.mysession.begin()
-       new_obs=Observation()
-       new_obs.mjd=mjd
-       new_obs.comment = "apogeeQL: no associated plate"
-       self.mysession.add(new_obs)
-       self.mysession.commit()
-       return new_obs.pk
-
-   def getExposurePk(self, obs_pk, readnum, starttime, exptime):
-       """Insert a new row in the platedb.exposure table """
-
-       self.mysession.begin()
-       new_exp = Exposure()
-       new_exp.observation_pk = obs_pk
-       new_exp.exposure_no = readnum
-
-       new_exp.survey_pk = self.apogeeSurveyPk
-       new_exp.start_time = starttime
-       new_exp.exposure_time = exptime
-       new_exp.comment = "apogeeQL"
-       # get the corresponding exposure_flavor_pk from the expType
-       expType = self.mysession.query(ExposureFlavor).filter(ExposureFlavor.label.match(self.expType))
-       if expType.count() >= 1:
-          new_exp.exposure_flavor_pk = expType[0].pk
-       self.mysession.add(new_exp)
-       self.mysession.commit()
-       return new_exp.pk
-   '''
 
    def getCalibBoxStatus(self):
        """Insert a new row in the platedb.exposure table """
