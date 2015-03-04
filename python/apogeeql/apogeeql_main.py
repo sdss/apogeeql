@@ -426,9 +426,11 @@ class Apogeeql(actorcore.Actor.Actor):
       if readnum == 1 or Apogeeql.exp_pk == 0:
 
          #Create new exposure object
+         #currently hard-coded for survey=APOGEE-2
+         surveyLabel='APOGEE-2'
          try:
              Apogeeql.exp_pk = addExposure(Apogeeql.actor.mysession, Apogeeql.prevScanId, Apogeeql.prevScanMJD, 
-                                           Apogeeql.prevPlate, mjd, expnum, starttime, exptime, Apogeeql.expType, 'apogeeQL')
+                                           Apogeeql.prevPlate, mjd, expnum, surveyLabel, starttime, exptime, Apogeeql.expType, 'apogeeQL')
          except RuntimeError as e:
              Apogeeql.actor.logger.error('Failed in call addExposure for exposureNo %d' %expnum)
              Apogeeql.actor.logger.error('Exception: %s'%e)
