@@ -1017,7 +1017,6 @@ def main():
    signal.signal(signal.SIGTERM, kill_handler)
    apogeeql.run()
 
-
 #-------------------------------------------------------------
 if __name__ == '__main__':
    try:
