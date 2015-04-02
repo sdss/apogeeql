@@ -761,7 +761,7 @@ class Apogeeql(actorcore.Actor.Actor):
           hours = float(time_string[p-2:p])
           minutes = float(time_string[p+1:p+3])
           seconds=float(time_string[p+4:])
-          startime = starttime + seconds + (minutes + hours*60.0) * 60.0
+          starttime = starttime + seconds + (minutes + hours*60.0) * 60.0
       exptime = hdulist[0].header['exptime']
 
       cards=[]
