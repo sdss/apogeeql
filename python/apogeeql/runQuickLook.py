@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+#Author: Neville Shane, University of Virginia, nss5b@virginia.edu
 """
 This script will run the apogee quicklook process manually
 If an output file is specified, all quicklook data, with the exception of large arrays,
@@ -36,19 +37,13 @@ try:
     from sdss.apogee.addExposure import *
     from sdss.apogee.makeApogeePlugMap import *
 except ImportError:
-    print 'Could not create ModelClasses - did you "setup sdss_python_module" before running this script??\n'
+    print 'Error on import - did you "setup sdss_python_module" before running this script??\n'
     try:
         db
     except:
         db.engine.dispose() # avoid "unexpected EOF on client connection" on db server
     sys.exit(1)
-'''
-try:
-	import plugmapm2a
-except ImportError:
-    print 'Error on import - did you "setup apogeeql" before running this script??\n'
-    sys.exit(1)
-'''
+
 #initial setup
 mjd = None
 plate_id = None
@@ -56,6 +51,7 @@ exposure_id = None
 output_file = None
 prevPlateId = None
 prevCartId = None
+prevPlugging = None
 prevPointing = None
 prevScanId = None
 prevScanMJD = None
@@ -115,22 +111,23 @@ except:
 	raise RuntimeError("Failed: APQLDATA_DIR is not defined")
 
 try:
-	#archive_dir = os.environ["APQLARCHIVE_DIR"]
-	archive_dir = '/home/apogee/manual_quicklook/bin/archive/'
+	archive_dir = os.environ["APQLARCHIVE_DIR"]
+	#archive_dir = '/home/apogee/manual_quicklook/bin/archive/'
 except:
 	raise RuntimeError("Failed: APQLARCHIVE_DIR is not defined")
 
-#plugmap_dir = '/data-ql/plugmaps/'
-plugmap_dir = '/home/apogee/manual_quicklook/bin/tmp_plugmapAfiles/'
+plugmap_dir = '/data-ql/plugmaps/'
+#plugmap_dir = '/home/apogee/manual_quicklook/bin/tmp_plugmapAfiles/'
 ics_dir = '/data-ics/'
 raw_dir = os.path.join(data_dir,mjd)
+
 mysession = db.Session()
 
 #Verify that all the UTR files were copied from the ICS (won't do anything if there are no longer files
 #in the ICS directory)
 dayOfSurvey = str(int(mjd) - startOfSurvey)
 indir = os.path.join(ics_dir,dayOfSurvey)
-print indir
+
 if exposure_id is not None:
 	lst = glob.glob(os.path.join(indir,'apRaw-'+str(exposure_id)+'*.fits'))
 else:
@@ -171,61 +168,98 @@ for exp in exposures:
 	#get raw file and read cartidge and pointing from header
 	exp_files = sorted(glob.glob(os.path.join(raw_dir,'apRaw-'+str(exp)+'*.fits')))
 	hdulist=pyfits.open(exp_files[0])
-	plateId = hdulist[0].header['PLATEID']
+	#check that the raw file contains PLATEID in the header so taht we can find plugmap
+	if 'PLATEID' in hdulist[0].header:
+		plateId = hdulist[0].header['PLATEID']
 
-	#if user has specified a plate and this file is for a different plate, then skip
-	if plate_id is not None and plateId != plate_id:
-		continue
-	
-	survey=mysession.query(Survey).join(PlateToSurvey).join(Plate).filter(Plate.plate_id==plateId)
-	if survey.count() > 0:
-		if survey[0].label.upper().find("APOGEE") == -1 and survey[0].label.upper().find("MANGA") == -1:
-			 # not an apogee or marvels plate - just skip
-			 continue
+		#if user has specified a plate and this file is for a different plate, then skip
+		if plate_id is not None and plateId != plate_id:
+			continue
+		
+		survey=mysession.query(Survey).join(PlateToSurvey).join(Plate).filter(Plate.plate_id==plateId)
+		if survey.count() > 0:
+			if survey[0].label.upper().find("APOGEE") == -1 and survey[0].label.upper().find("MANGA") == -1:
+				 # not an apogee or marvels plate - just skip
+				 continue
 
-	print 'Processing exposure ',exp
+		print 'Processing exposure ',exp
 
-	cartId = hdulist[0].header['CARTID']
-	pointing = hdulist[0].header['POINTING']
-	
-	# starttime is MJD in seconds
-	startTime = int(mjd)*24.0*3600.0
-	time_string = hdulist[0].header['DATE-OBS']
-	p = time_string.find(':')
-	if p > 0:
-		hours = float(time_string[p-2:p])
-		minutes = float(time_string[p+1:p+3])
-		seconds = float(time_string[p+4:])
-		startTime = startTime + seconds + (minutes + hours*60.0) * 60.0
-	
-	expTime = hdulist[0].header.get('EXPTIME')
-	expType = hdulist[0].header.get('IMAGETYP')
+		cartId = hdulist[0].header['CARTID']
+		pointing = hdulist[0].header['POINTING']
+		
+		# starttime is MJD in seconds
+		startTime = int(mjd)*24.0*3600.0
+		time_string = hdulist[0].header['DATE-OBS']
+		p = time_string.find(':')
+		if p > 0:
+			hours = float(time_string[p-2:p])
+			minutes = float(time_string[p+1:p+3])
+			seconds = float(time_string[p+4:])
+			startTime = startTime + seconds + (minutes + hours*60.0) * 60.0
+		
+		expTime = hdulist[0].header.get('EXPTIME')
+		expType = hdulist[0].header.get('IMAGETYP')
+	#if the file has been copied straight from ICS without appending the extra fits keywords
+	#ask the user to manually enter the plugmap filename
+	else:
+		print 'File %s does not contain PLATEID in header' %(exp_files[0])
+		plateId = 999
+		cartId = 999
+		pointing = 999
+		found = 0
+		skip = 0
+		while found == 0:
+			if prevPlugging is not None:
+				ans = raw_input('Use (p)revious plugmap file, %s, enter new plugmap_m filename, or (s)kip: ' %(prevPlugging))
+			else:
+				ans = raw_input('Enter plugmap_m filename, or (s)kip: ')
+			if ans == 's' or ans == 'S':
+				skip = 1
+				found = 1
+			elif ans == 'p' or ans == 'P':
+				plateId = prevPlateId
+				cartId = prevCartId
+				pointing = prevPointing
+				found = 1
+			else:
+				pm_ans = mysession.query(PlPlugMapM).filter(PlPlugMapM.filename==ans)
+				if pm_ans.count() == 0:
+					 print "No plugmap found with name %s" % (ans)
+				else:
+					pm_ans = pm_ans[0]
+					found = 1
+		if skip == 1:
+			continue
+
 
 	count_exp += 1
 	# get plugmap
 	if plateId != prevPlateId or cartId != prevCartId or pointing != prevPointing: 
-		
-		pm = mysession.query(PlPlugMapM).join(Plugging,Plate,Cartridge).\
-			filter(Plate.plate_id==plateId).\
-			filter(Cartridge.number==cartId).\
-			filter(PlPlugMapM.pointing_name==pointing).\
-			order_by(PlPlugMapM.fscan_mjd.desc()).order_by(PlPlugMapM.fscan_id.desc())
-
-		if pm.count() == 0:
-			raise RuntimeError("No plugmap found for plate %d cartidge %d plugging %s" % (plateId, cartId, pointing))
+		if plateId is 999:
+			#use plugmap entered manually
+			pm = pm_ans
 		else:
-			pm=pm[0]		
+			pm = mysession.query(PlPlugMapM).join(Plugging,Plate,Cartridge).\
+				filter(Plate.plate_id==plateId).\
+				filter(Cartridge.number==cartId).\
+				filter(PlPlugMapM.pointing_name==pointing).\
+				order_by(PlPlugMapM.fscan_mjd.desc()).order_by(PlPlugMapM.fscan_id.desc())
+
+			if pm.count() == 0:
+				raise RuntimeError("No plugmap found for plate %d cartidge %d plugging %s" % (plateId, cartId, pointing))
+			else:
+				pm = pm[0]		
 
 		# create apogee plugmap file
 		fname = pm.filename
 		p = fname.find('MapM')
-		fname  = os.path.join(plugmap_dir,fname[0:p+3]+'A'+fname[p+4:])
-		print 'Creating APOGEE plugmap file', fname
-		makeApogeePlugMap(mysession,pm,fname)
+		fname_a  = os.path.join(plugmap_dir,fname[0:p+3]+'A'+fname[p+4:])
+		print 'Creating APOGEE plugmap file', fname_a
+		makeApogeePlugMap(mysession,pm,fname_a)
 		
 		prevPlateId = plateId
 		prevCartId = cartId
-		
+		prevPlugging = fname
 		prevPointing = pointing
 		prevScanId = pm.fscan_id
 		prevScanMJD = pm.fscan_mjd
@@ -236,16 +270,16 @@ for exp in exposures:
 		if not os.path.isdir(arch_dir):
 			os.mkdir(arch_dir, 0o0775)
 
-		res=os.path.split(fname)
+		res=os.path.split(fname_a)
 		archivefile = os.path.join(arch_dir,res[1])
 		print 'Archiving APOGEE plugmap file to ',archivefile
-		shutil.copyfile(fname,archivefile)
+		shutil.copyfile(fname_a,archivefile)
 	
 
 	# create exposure entry in DB
 	survey = mysession.query(Survey).filter(Survey.label==surveyLabel)
 	survey = survey[0]
-	#check if exposure already exists in DB, otherwise create it
+	# check if exposure already exists in DB, otherwise create it
 	exp_obj = mysession.query(Exposure).filter(Exposure.survey_pk==survey.pk).filter(Exposure.exposure_no==int(exp))
 	if exp_obj.count() == 1:
 		exp_pk=exp_obj[0].pk
@@ -257,32 +291,27 @@ for exp in exposures:
 
 
 	# run apql_wrapper_manual IDL code
-	plugfile = fname
-#	plugfile='tmp_plugmapAfiles/plPlugMapA-8264-57111-01.par'
-	#write mjd, exp, plate_id and plug file to tmp file to send to apql_wrapper_manual 
+	plugfile = fname_a
+	# write mjd, exp, plate_id and plug file to tmp file to send to apql_wrapper_manual 
 	f_ql.write('%s, %s, %s, %s\n' %(mjd, exp, plateId, plugfile))
+
 f_ql.close()
 
+if count_exp > 0 :
+	if output_file is not None:
+		ql_cmd = 'idl -e "apql_wrapper_manual,\'%s\',no_dbinsert=%i, outfile=\'%s\'"' % (listfile, not dbinsert, output_file)
+	else:
+		ql_cmd = 'idl -e "apql_wrapper_manual,\'%s\',no_dbinsert=%i"' % (listfile, not dbinsert)
+	print ql_cmd
 
-if output_file is not None:
-	ql_cmd = 'idl -e "apql_wrapper_manual,\'%s\',no_dbinsert=%i, outfile=\'%s\'"' % (listfile, not dbinsert, output_file)
+	ql_process = subprocess.Popen(ql_cmd, stderr=subprocess.PIPE, shell=True)
+	output=ql_process.communicate()[0] 
+	if output is not None:
+		print output
 else:
-	ql_cmd = 'idl -e "apql_wrapper_manual,\'%s\',no_dbinsert=%i"' % (listfile, not dbinsert)
-print ql_cmd
-
-ql_process = subprocess.Popen(ql_cmd, stderr=subprocess.PIPE, shell=True)
-output=ql_process.communicate()[0] 
-if output is not None:
-	print output
-
-#delete tmp list file
-os.remove(listfile)
-
-
-#close db connection
-db.engine.dispose()
-
-
-if count_exp == 0:
 	raise RuntimeError("No APOGEE or MANGA exposures found for plate %s on MJD %s" % (plate_id, mjd))
 
+# delete tmp list file
+os.remove(listfile)
+# close db connection
+db.engine.dispose()

@@ -4,3 +4,4 @@ setupRequired(sdss_python_module)
 
 pathPrepend(PATH, ${PRODUCT_DIR}/bin)
 pathPrepend(PYTHONPATH, ${PRODUCT_DIR}/python)
+pathPrepend(IDL_PATH, ${APGQUICKLOOK_DIR}/pro)
