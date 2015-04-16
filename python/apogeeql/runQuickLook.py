@@ -5,18 +5,20 @@ This script will run the apogee quicklook process manually
 If an output file is specified, all quicklook data, with the exception of large arrays,
 will be written to that file in the form of CSV tables.
 
-Usage: Specify the MJD, and optionally plate id or exposure number.  Use the -d (dbinsert) flag to specify a 
-DB insert to QuicklookDB.
-NOTE - any new Exposures and Observations will be commitetd to platedb, irrespective of the dbinsert flag.
+Usage: Specify the MJD, and optionally plate id (-p plateId) or exposure number (-e exposureId).  
+Use the -d (--dbinsert) flag to specify a DB insert to QuicklookDB.
+Use the -o (--outputfile) flag to specify the name of the file to which you wish to write the quicklook output.
+Use the -r (--quickred) flag if you also wish to run Quickred.
+Use the -s (--qr_outfile) flag to specify the name of the file to which you wish to write the quickred output.
 
-	runQuicklook mjd -p plateId -e exposureId -o output_file -d
+	runQuicklook mjd -p plateId -e exposureId -o output_file -d -r -p quickred_output_file
 
 Script prerequisites:
 ----------------------
-setup sdss_python_module
+setup apogeereduce
 setup apgquicklook
+setup sdss_python_module
 """
-
 
 from optparse import OptionParser
 import sys, os, tempfile, glob, shutil, subprocess
@@ -49,6 +51,7 @@ mjd = None
 plate_id = None
 exposure_id = None
 output_file = None
+qr_output_file = None
 prevPlateId = None
 prevCartId = None
 prevPlugging = None
@@ -81,6 +84,16 @@ parser.add_option("-d", "--dbinsert",
 						default=False,
 						help="write to database if true")
 
+parser.add_option("-r", "--quickred",
+						dest="quickred",
+						action="store_true",
+						default=False,
+						help="also run quickred")
+
+parser.add_option("-s", "--qroutfile",
+						dest="qr_output_file",
+						help="write quickred output to this file")
+
 global options
 (options, args) = parser.parse_args()
 
@@ -95,6 +108,9 @@ if options.exposure_id:
 if options.output_file:
 	output_file = options.output_file
 dbinsert = options.dbinsert
+runquickred = options.quickred
+if options.qr_output_file:
+	qr_output_file = options.qr_output_file
 
 
 if (mjd == None):
@@ -111,13 +127,21 @@ except:
 	raise RuntimeError("Failed: APQLDATA_DIR is not defined")
 
 try:
+	spectro_dir = os.environ["APQLSPECTRO_DIR"]
+except:
+	raise RuntimeError("Failed: APQLSPECTRO_DIR is not defined")
+
+try:
 	archive_dir = os.environ["APQLARCHIVE_DIR"]
-	#archive_dir = '/home/apogee/manual_quicklook/bin/archive/'
 except:
 	raise RuntimeError("Failed: APQLARCHIVE_DIR is not defined")
 
+try:
+	quickred_dir = os.environ["APQLQUICKRED_DIR"]
+except:
+	raise RuntimeError("Failed: APQLQUICKRED_DIR is not defined")
+
 plugmap_dir = '/data-ql/plugmaps/'
-#plugmap_dir = '/home/apogee/manual_quicklook/bin/tmp_plugmapAfiles/'
 ics_dir = '/data-ics/'
 raw_dir = os.path.join(data_dir,mjd)
 
@@ -148,6 +172,10 @@ if count > 0:
 #open a temporary file that will contain a list fo exposures, etc, to send to apql_wrapper_manual.pro
 f_ql = tempfile.NamedTemporaryFile(delete=False)
 listfile = f_ql.name
+#if we are also running quickred, open a file taht will contain a list to send to apqr_wrapper_manual.pro
+if runquickred:
+	f_qr =  tempfile.NamedTemporaryFile(delete=False)
+	qrlistfile = f_qr.name
 
 # get list of exposures for the mjd
 if exposure_id is not None:
@@ -274,44 +302,78 @@ for exp in exposures:
 		archivefile = os.path.join(arch_dir,res[1])
 		print 'Archiving APOGEE plugmap file to ',archivefile
 		shutil.copyfile(fname_a,archivefile)
-	
 
-	# create exposure entry in DB
-	survey = mysession.query(Survey).filter(Survey.label==surveyLabel)
-	survey = survey[0]
-	# check if exposure already exists in DB, otherwise create it
-	exp_obj = mysession.query(Exposure).filter(Exposure.survey_pk==survey.pk).filter(Exposure.exposure_no==int(exp))
-	if exp_obj.count() == 1:
-		exp_pk=exp_obj[0].pk
-	elif exp_obj.count() == 0: 	
-		exp_pk = addExposure(mysession, prevScanId, prevScanMJD, prevPlateId, mjd, int(exp), surveyLabel, startTime, expTime, expType, 'Manual apogeeQL')
+	# see if exposure entry already exists in DB  
+	exposure = mysession.query(Exposure).filter(Exposure.exposure_no==exp)
+	if exposure.count() != 0:
+		exp_pk = exposure[0].pk
 	else:
-		raise RuntimeError("ERROR: Multiple exposures already exist for exposure number %d, survey %s" \
-						 % (exposureNo, survey.label))
+		if dbinsert:
+			# create exposure entry in DB
+			survey = mysession.query(Survey).filter(Survey.label==surveyLabel)
+			survey = survey[0]
+			# check if exposure already exists in DB, otherwise create it
+			exp_obj = mysession.query(Exposure).filter(Exposure.survey_pk==survey.pk).filter(Exposure.exposure_no==int(exp))
+			if exp_obj.count() == 1:
+				exp_pk=exp_obj[0].pk
+			elif exp_obj.count() == 0: 	
+				exp_pk = addExposure(mysession, prevScanId, prevScanMJD, prevPlateId, mjd, int(exp), surveyLabel, startTime, expTime, expType, 'Manual apogeeQL')
+			else:
+				raise RuntimeError("ERROR: Multiple exposures already exist for exposure number %d, survey %s" \
+								 % (exposureNo, survey.label))
+		else:
+			exp_pk = 'None'
 
-
-	# run apql_wrapper_manual IDL code
 	plugfile = fname_a
+
 	# write mjd, exp, plate_id and plug file to tmp file to send to apql_wrapper_manual 
 	f_ql.write('%s, %s, %s, %s\n' %(mjd, exp, plateId, plugfile))
+	# if we are also running quickred, write mjd, exp, exp_pk, and plug file to tmp file to send to apqr_wrapper_manual
+	if runquickred:
+		f_qr.write('%s, %s, %s, %s\n' %(mjd, exp, exp_pk, plugfile))
 
 f_ql.close()
+if runquickred: 
+	f_qr.close()
 
 if count_exp > 0 :
+	# run apql_wrapper_manual IDL code
 	if output_file is not None:
-		ql_cmd = 'idl -e "apql_wrapper_manual,\'%s\',no_dbinsert=%i, outfile=\'%s\'"' % (listfile, not dbinsert, output_file)
+		ql_cmd = 'idl -e "apql_wrapper_manual,\'%s\',no_dbinsert=%i,outfile=\'%s\',data_dir=\'%s\',spectro_dir=\'%s\'"' \
+			 % (listfile, not dbinsert, output_file, data_dir, spectro_dir)
 	else:
-		ql_cmd = 'idl -e "apql_wrapper_manual,\'%s\',no_dbinsert=%i"' % (listfile, not dbinsert)
+		ql_cmd = 'idl -e "apql_wrapper_manual,\'%s\',no_dbinsert=%i,data_dir=\'%s\',spectro_dir=\'%s\'"'  \
+			 % (listfile, not dbinsert, data_dir, spectro_dir)
 	print ql_cmd
 
 	ql_process = subprocess.Popen(ql_cmd, stderr=subprocess.PIPE, shell=True)
 	output=ql_process.communicate()[0] 
 	if output is not None:
 		print output
+
+	# if quickred requested, also run apqr_wrapper_manual IDL code
+	if runquickred:
+		print 'RUNNING QUICKRED'
+		if qr_output_file is not None:
+			qr_cmd = 'idl -e "apqr_wrapper_manual,\'%s\',no_dbinsert=%i,outfile=\'%s\',data_dir=\'%s\',spectro_dir=\'%s\',archive_dir=\'%s\',quickred_dir=\'%s\'"' \
+				% (qrlistfile, not dbinsert, qr_output_file, data_dir, spectro_dir, archive_dir, quickred_dir)
+		else:
+			qr_cmd = 'idl -e "apqr_wrapper_manual,\'%s\',no_dbinsert=%i,data_dir=\'%s\',spectro_dir=\'%s\',archive_dir=\'%s\',quickred_dir=\'%s\'"' \
+				% (qrlistfile, not dbinsert, data_dir, spectro_dir, archive_dir, quickred_dir)
+		print qr_cmd
+		
+		qr_process = subprocess.Popen(qr_cmd, stderr=subprocess.PIPE, shell=True)		
+		output=qr_process.communicate()[0] 
+		if output is not None:
+			print output
+
+
 else:
 	raise RuntimeError("No APOGEE or MANGA exposures found for plate %s on MJD %s" % (plate_id, mjd))
 
-# delete tmp list file
+# delete tmp list files
 os.remove(listfile)
+if runquickred:
+	os.remove(qrlistfile)
 # close db connection
 db.engine.dispose()
