@@ -11,7 +11,7 @@ Use the -o (--outputfile) flag to specify the name of the file to which you wish
 Use the -r (--quickred) flag if you also wish to run Quickred.
 Use the -s (--qr_outfile) flag to specify the name of the file to which you wish to write the quickred output.
 
-	runQuicklook mjd -p plateId -e exposureId -o output_file -d -r -p quickred_output_file
+	runQuickLook mjd -p plateId -e exposureId -o output_file -d -r -p quickred_output_file
 
 Script prerequisites:
 ----------------------
