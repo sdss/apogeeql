@@ -755,8 +755,7 @@ class Apogeeql(actorcore.Actor.Actor):
 
       # starttime is MJD in seconds      
       time_string = hdulist[0].header['DATE-OBS']
-      smjd = Time(time_string,format='isot',scale='utc').mjd + 0.3
-      starttime = smjd * 86400.0
+      starttime = Time(time_string,format='isot',scale='utc').mjd * 86400.0
 
       exptime = hdulist[0].header['exptime']
 
