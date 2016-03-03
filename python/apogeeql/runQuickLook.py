@@ -28,7 +28,7 @@ import traceback
 import sqlalchemy
 
 try:
-    from sdss.internal.database.connections.APODatabaseUserLocalConnection import db # access to engine, metadata, Session
+    from sdss.internal.database.connections.APODatabaseAdminLocalConnection import db # access to engine, metadata, Session
 #	from sdss.internal.database.connections.APODatabaseDevAdminLocalConnection import db as db_dev #dev db for testing
 except ImportError:
     print 'Error on import - did you "setup sdss_python_module" before running this script??\n'
@@ -260,12 +260,29 @@ for exp in exposures:
 			continue
 
 
+		
+
+
+		# starttime is MJD in seconds
+		startTime = int(mjd)*24.0*3600.0
+		time_string = hdulist[0].header['DATE-OBS']
+		p = time_string.find(':')
+		if p > 0:
+			hours = float(time_string[p-2:p])
+			minutes = float(time_string[p+1:p+3])
+			seconds = float(time_string[p+4:])
+			startTime = startTime + seconds + (minutes + hours*60.0) * 60.0
+		
+		expTime = hdulist[0].header.get('EXPTIME')
+		expType = hdulist[0].header.get('IMAGETYP')
+
 	count_exp += 1
 	# get plugmap
 	if plateId != prevPlateId or cartId != prevCartId or pointing != prevPointing: 
 		if plateId is 999:
 			#use plugmap entered manually
 			pm = pm_ans
+			plateId = plate_id
 		else:
 			pm = mysession.query(PlPlugMapM).join(Plugging,Plate,Cartridge).\
 				filter(Plate.plate_id==plateId).\
