@@ -26,8 +26,8 @@ ICSsoc.connect(ICSADRS)               #Connect to ICS socket at Address above
 # to command1m        #
 ###############################################################################
 # This client will send the status command to the 1-meter and receive the reply
-IP1m   = '10.75.0.24'                #IP Address to connect to command1m 
-port1m = 1050                        #Port to connect to command1m
+IP1m   = '10.75.0.19'                #IP Address to connect to command1m 
+port1m = 1053                        #Port to connect to command1m
 ADRS1m = (IP1m,port1m)           #Combine IP and port into Address for server
 soc1m = socket(AF_INET, SOCK_STREAM) #Create socket to ICS, named 1msoc
 #soc1m.connect(ADRS1m)                #Connect to ICS socket at Address abov
