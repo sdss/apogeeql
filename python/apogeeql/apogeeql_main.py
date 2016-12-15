@@ -888,6 +888,9 @@ class Apogeeql(actorcore.Actor.Actor):
 
        res=os.path.split(newfilename)
        archivefile = os.path.join(arch_dir,res[1])
+       # delete file if it already exists
+       if os.path.isfile(archivefile):
+          os.remove(archivefile)
        p0.write(archivefile)
  
        return 
