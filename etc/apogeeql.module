@@ -41,7 +41,29 @@ module-whatis "Sets up $product/$version in your environment."
 # A mandatory dependency is a module load command followed by a prereq
 # command.  An optional dependency is not followed by a prereq statement.
 #
-# NO DEPENDENCIES
+module load python
+prereq python
+module load sdss_python_module
+prereq sdss_python_module
+module load sdss_access
+prereq sdss_access
+module load tree
+prereq tree
+module load idl/8.5.1
+module load apogee
+prereq apogee
+module load platelist
+module load actorcore
+prereq actorcore
+module load actorkeys
+prereq actorkeys
+module load opscore
+prereq opscore
+module load RO
+prereq RO
+module load external
+prereq external
+
 #
 # ENVIRONMENT SECTION
 #
@@ -68,6 +90,3 @@ setenv [string toupper $product]_DIR $PRODUCT_DIR
 #
 # Add any non-standard Module code below this point.
 #
-module load actorcore
-module load apgquicklook
-module load sdss_python_module
