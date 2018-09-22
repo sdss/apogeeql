@@ -910,7 +910,11 @@ class Apogeeql(actorcore.Actor.SDSSActor):
        # write a copy to the archive directory
        # define the current mjd archive directory to store the plPlugMapA file
        mjd = astroMJD.mjdFromPyTuple(time.gmtime())
-       fmjd = str(int(mjd + 0.3))
+       if self.location == 'APO' :
+           fmjd = str(int(mjd + 0.3))
+       elif self.location == 'LCO' :
+           fmjd = str(int(mjd + 0.4))
+
        arch_dir = os.path.join(self.archive_dir, fmjd)
        if not os.path.isdir(arch_dir):
            os.mkdir(arch_dir, 0o0775)
