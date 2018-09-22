@@ -5,9 +5,15 @@ from twisted.protocols.basic import LineReceiver
 from twisted.internet import reactor
 from twisted.internet.protocol import Protocol, Factory
 
-from sdss.internal.database.connections.APODatabaseAdminLocalConnection import db # access to engine, metadata, Session
+import socket
+if socket.getfqdn().find('apo.nmsu.edu') :
+    from sdss.internal.database.connections.APODatabaseAdminLocalConnection import db # access to engine, metadata, Session
+elif socket.getfqdn().find('lco.cl') :
+    from sdss.internal.database.connections.LCODatabaseAdminLocalConnection import db # access to engine, metadata, Session
 from sdss.internal.database.apo.platedb.ModelClasses import *
 from sdss.apogee.addExposure import addExposure
+
+from sdss_access.path import path
 
 import sqlalchemy
 
@@ -146,7 +152,7 @@ class QRFactory(ClientFactory):
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-class Apogeeql(actorcore.Actor.Actor):
+class Apogeeql(actorcore.Actor.SDSSActor):
 
    models = {}
    ql_pid = 0
@@ -180,8 +186,22 @@ class Apogeeql(actorcore.Actor.Actor):
    watchDogStatus=True  # if True, the idl code is stil responding
    watchDogTimer=2.0    # should return a reply within this time if still alive
 
+   @staticmethod
+   def newActor(location=None,**kwargs):
+        """Return the version of the actor based on our location."""
+
+        location = Apogeeql._determine_location(location)
+        if location == 'APO':
+            return ApogeeqlAPO('apogeeql',productName='apogeeql',**kwargs)
+        elif location == 'LCO':
+            return ApogeeqlLCO('apogeeql',productName='apogeeql',**kwargs)
+        elif location == 'LOCAL':
+            return ApogeeqlLocal('apogeeql', productName='apogeeql', **kwargs)
+        else:
+            raise KeyError("Don't know my location: cannot return a working Actor!")
+
    def __init__(self, name, productName=None, configFile=None, debugLevel=20):
-      actorcore.Actor.Actor.__init__(self, name, productName=productName, configFile=configFile)
+      actorcore.Actor.SDSSActor.__init__(self, name, productName=productName, configFile=configFile)
 
       Apogeeql.actor=self
       self.headURL = '$HeadURL$'
@@ -193,15 +213,18 @@ class Apogeeql(actorcore.Actor.Actor):
       # only the ics_datadir is defined in the cfg file - expect the datadir to be an
       # environment variable set by the apgquicklook setup 
       # (don't want to keep it in 2 different places)
+      sdss_path=path.Path()
       try:
-         self.datadir = os.environ["APQLDATA_DIR"]
+         self.datadir = sdss_path.dir('apRaw',num=0,mjd=55562,read=0)[0:-5]
+         #self.datadir = os.environ["APQLDATA_DIR"]
       except:
          self.logger.error("Failed: APQLDATA_DIR is not defined")
          traceback.print_exc()
 
       # environment variable set by the apgquicklook setup (don't want to keep it in 2 different places)
       try:
-         self.archive_dir = os.environ["APQLARCHIVE_DIR"]
+         self.archive_dir = sdss_path.dir('apR',num=0,chip='a',mjd=55562)[0:-5]
+         #self.archive_dir = os.environ["APQLARCHIVE_DIR"]
       except:
          self.logger.error("Failed: APQLARCHIVE_DIR is not defined")
          traceback.print_exc()
@@ -373,6 +396,7 @@ class Apogeeql(actorcore.Actor.Actor):
             for s in Apogeeql.qlSources:
                s.sendLine('UTR=DONE')
             for s in Apogeeql.qrSources:
+               print('in actor, exp_pk: ', Apogeeql.exp_pk)
                s.sendLine('UTR=DONE,%s,%d,%s' % (Apogeeql.frameid, mjd5, Apogeeql.exp_pk))
       elif Apogeeql.expState.upper() != 'STOPPING':
          # when a stop was requested, a couple of images will still be coming in
@@ -512,7 +536,7 @@ class Apogeeql(actorcore.Actor.Actor):
          qlCommand = self.config.get('apogeeql','qlCommandName')
          qlCommand = qlCommand.strip('"')
          # this adds the arguments to the IDL command line
-         qlCommand += " -args %s %s" % (self.qlHost, self.qlPort)
+         qlCommand += " -args %s %s %s" % (self.qlHost, self.qlPort, self.location)
          # Popen does NOWAIT by default
          ql_process = subprocess.Popen(qlCommand.split(), stderr=subprocess.STDOUT)
          self.ql_pid = ql_process.pid
@@ -572,7 +596,7 @@ class Apogeeql(actorcore.Actor.Actor):
          qrCommand = self.config.get('apogeeql','qrCommandName')
          qrCommand = qrCommand.strip('"')
          # this adds the arguments to the IDL command line
-         qrCommand += " -args %s %s" % (self.qrHost, self.qrPort)
+         qrCommand += " -args %s %s %s" % (self.qrHost, self.qrPort, self.location)
          # Popen does NOWAIT by default
          qr_process = subprocess.Popen(qrCommand.split(), stderr=subprocess.STDOUT)
          self.qr_pid = qr_process.pid
@@ -723,8 +747,9 @@ class Apogeeql(actorcore.Actor.Actor):
       del hdulist[0].header['BZERO']
       hdulist[0].header.update('BSCALE',bscale,after='GCOUNT')
       hdulist[0].header.update('BZERO',bzero,after='BSCALE')
-      
-      hdulist[0].header.update('TELESCOP' , 'SDSS 2-5m')
+     
+      if self.location == 'APO' : 
+          hdulist[0].header.update('TELESCOP' , 'SDSS 2-5m')
       hdulist[0].header.update('FILENAME' ,outFile)
       hdulist[0].header.update('EXPTYPE' ,self.expType)
       
@@ -747,6 +772,8 @@ class Apogeeql(actorcore.Actor.Actor):
       seeing = Apogeeql.actor.models['guider'].keyVarDict['seeing'][0]
       try:
           seeing=float(seeing)
+          if math.isnan(seeing) :
+              seeing=0.0
           if seeing == float('NaN'):
               seeing=0.0
       except:
@@ -760,8 +787,11 @@ class Apogeeql(actorcore.Actor.Actor):
       exptime = hdulist[0].header['exptime']
 
       cards=[]
-      cards.extend(actorFits.mcpCards(self.models, cmd=self.bcast))
-      cards.extend(actorFits.tccCards(self.models, cmd=self.bcast))
+      if self.location == 'APO' :
+          cards.extend(actorFits.mcpCards(self.models, cmd=self.bcast))
+          cards.extend(actorFits.tccCards(self.models, cmd=self.bcast))
+      elif self.location == 'LCO' :
+          cards.extend(actorFits.lcoTCCCards(self.models, cmd=self.bcast))
       cards.extend(actorFits.plateCards(self.models, cmd=self.bcast))
 
       for name, val, comment in cards:
@@ -945,6 +975,19 @@ class Apogeeql(actorcore.Actor.Actor):
 
 
 
+class ApogeeqlAPO(Apogeeql):
+    """APO version of this actor."""
+    location = 'APO'
+
+
+class ApogeeqlLCO(Apogeeql):
+    """LCO version of this actor."""
+    location = 'LCO'
+
+class ApogeeqlLocal(Apogeeql):
+    """localhost version of this actor, for testing with your own tron."""
+    location = 'LOCAL'
+
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 def kill_handler(signum, frame):
@@ -1007,7 +1050,7 @@ def kill_handler(signum, frame):
 def main():
    import os, signal
 
-   apogeeql = Apogeeql('apogeeql', 'apogeeql')
+   apogeeql = Apogeeql.newActor()
    apogeeql.connectQuickLook()
    apogeeql.startQuickLook()
    apogeeql.connectQuickReduce()
