@@ -6,9 +6,9 @@ from twisted.internet import reactor
 from twisted.internet.protocol import Protocol, Factory
 
 import socket
-if socket.getfqdn().find('apo.nmsu.edu') :
+if socket.getfqdn().find('apo.nmsu.edu') >=0 :
     from sdss.internal.database.connections.APODatabaseAdminLocalConnection import db # access to engine, metadata, Session
-elif socket.getfqdn().find('lco.cl') :
+elif socket.getfqdn().find('lco.cl') >=0 :
     from sdss.internal.database.connections.LCODatabaseAdminLocalConnection import db # access to engine, metadata, Session
 from sdss.internal.database.apo.platedb.ModelClasses import *
 from sdss.apogee.addExposure import addExposure
