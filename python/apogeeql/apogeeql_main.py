@@ -223,7 +223,10 @@ class Apogeeql(actorcore.Actor.SDSSActor):
 
       # environment variable set by the apgquicklook setup (don't want to keep it in 2 different places)
       try:
-         self.archive_dir = sdss_path.dir('apR',num=0,chip='a',mjd=55562)[0:-5]
+         if self.location == 'APO':
+             self.archive_dir = sdss_path.dir('apR',num=0,chip='a',mjd=55562)[0:-5]
+         elif self.location == 'LCO':
+             self.archive_dir = sdss_path.dir('asR',num=0,chip='a',mjd=55562)[0:-5]
          #self.archive_dir = os.environ["APQLARCHIVE_DIR"]
       except:
          self.logger.error("Failed: APQLARCHIVE_DIR is not defined")
