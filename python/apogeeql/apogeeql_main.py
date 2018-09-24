@@ -51,7 +51,7 @@ class QuickLookLineServer(LineReceiver):
         self.peer = self.transport.getPeer()
         self.factory.qlActor.qlSources.append(self)
         logging.info("Connection from %s %s" % (self.peer.host, self.peer.port))
-        print "Connection from ", self.peer.host, self.peer.port
+        print("Connection from ", self.peer.host, self.peer.port)
         # ping the quicklook
         if self.factory.qlActor.ql_pid > 0:
            for s in self.factory.qlActor.qlSources:
@@ -106,7 +106,7 @@ class QuickRedLineServer(LineReceiver):
         self.peer = self.transport.getPeer()
         self.factory.qrActor.qrSources.append(self)
         logging.info("apqr_wrapper Connection from %s %s" % (self.peer.host, self.peer.port))
-        print "apqr_wrapper -> Connection from ", self.peer.host, self.peer.port
+        print("apqr_wrapper -> Connection from ", self.peer.host, self.peer.port)
         # ping the quicklook
         if self.factory.qrActor.ql_pid > 0:
            for s in self.factory.qrActor.qrSources:
@@ -429,7 +429,7 @@ class Apogeeql(actorcore.Actor.SDSSActor):
          return
 
       if len(filename) == 0:
-         print "exposureWroteFileCB  -> Null filename received"
+         print("exposureWroteFileCB  -> Null filename received")
          return
 
       # create a new FITS file by appending the telescope fits keywords
@@ -437,7 +437,7 @@ class Apogeeql(actorcore.Actor.SDSSActor):
 
       #Don't create a new exposure if the exposure is not an APOGEE or MANGA object
       if Apogeeql.prevPlate == -1:
-         print "exposureWroteFileCB  -> Not an APOGEE/MANGA Object"
+         print("exposureWroteFileCB  -> Not an APOGEE/MANGA Object")
          return
 
       # get the mjd from the filename
@@ -998,7 +998,7 @@ class ApogeeqlLocal(Apogeeql):
 
 def kill_handler(signum, frame):
    # send the quit message to the idl routines
-   print 'Signal handler called with signal', signum
+   print('Signal handler called with signal', signum)
    logging.info("Stopping the IDL processes ... ")
    # stopping apqr_wrapper
 

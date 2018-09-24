@@ -31,7 +31,7 @@ try:
     from sdss.internal.database.connections.APODatabaseAdminLocalConnection import db # access to engine, metadata, Session
 #	from sdss.internal.database.connections.APODatabaseDevAdminLocalConnection import db as db_dev #dev db for testing
 except ImportError:
-    print 'Error on import - did you "setup sdss_python_module" before running this script??\n'
+    print('Error on import - did you "setup sdss_python_module" before running this script??\n')
     sys.exit(1)
 
 try:
@@ -39,7 +39,7 @@ try:
     from sdss.apogee.addExposure import *
     from sdss.apogee.makeApogeePlugMap import *
 except ImportError:
-    print 'Error on import - did you "setup sdss_python_module" before running this script??\n'
+    print('Error on import - did you "setup sdss_python_module" before running this script??\n')
     try:
         db
     except:
@@ -114,11 +114,11 @@ if options.qr_output_file:
 
 
 if (mjd == None):
-    print
-    print "Please specify the mjd to process."
-    print
-    print "Enter '%s --help' for more details." % sys.argv[0]
-    print
+    print()
+    print("Please specify the mjd to process.")
+    print()
+    print("Enter '%s --help' for more details." % sys.argv[0])
+    print()
     sys.exit()
 
 try:
@@ -166,7 +166,7 @@ for infile in lst:
 		#just copy the file (no appending of fits keywords)
 		shutil.copy(infile,outfile)
 if count > 0:
-	print '%d missing UTR files were copied from ICS directory' % (count)
+	print('%d missing UTR files were copied from ICS directory' % (count))
 
 
 #open a temporary file that will contain a list fo exposures, etc, to send to apql_wrapper_manual.pro
@@ -210,7 +210,7 @@ for exp in exposures:
 				 # not an apogee or marvels plate - just skip
 				 continue
 
-		print 'Processing exposure ',exp
+		print('Processing exposure ',exp)
 
 		cartId = hdulist[0].header['CARTID']
 		pointing = hdulist[0].header['POINTING']
@@ -230,7 +230,7 @@ for exp in exposures:
 	#if the file has been copied straight from ICS without appending the extra fits keywords
 	#ask the user to manually enter the plugmap filename
 	else:
-		print 'File %s does not contain PLATEID in header' %(exp_files[0])
+		print('File %s does not contain PLATEID in header' %(exp_files[0]))
 		plateId = 999
 		cartId = 999
 		pointing = 999
@@ -252,7 +252,7 @@ for exp in exposures:
 			else:
 				pm_ans = mysession.query(PlPlugMapM).filter(PlPlugMapM.filename==ans)
 				if pm_ans.count() == 0:
-					 print "No plugmap found with name %s" % (ans)
+					 print("No plugmap found with name %s" % (ans))
 				else:
 					pm_ans = pm_ans[0]
 					found = 1
@@ -299,7 +299,7 @@ for exp in exposures:
 		fname = pm.filename
 		p = fname.find('MapM')
 		fname_a  = os.path.join(plugmap_dir,fname[0:p+3]+'A'+fname[p+4:])
-		print 'Creating APOGEE plugmap file', fname_a
+		print('Creating APOGEE plugmap file', fname_a)
 		makeApogeePlugMap(mysession,pm,fname_a)
 		
 		prevPlateId = plateId
@@ -317,7 +317,7 @@ for exp in exposures:
 
 		res=os.path.split(fname_a)
 		archivefile = os.path.join(arch_dir,res[1])
-		print 'Archiving APOGEE plugmap file to ',archivefile
+		print('Archiving APOGEE plugmap file to ',archivefile)
 		shutil.copyfile(fname_a,archivefile)
 
 	# see if exposure entry already exists in DB  
@@ -361,28 +361,28 @@ if count_exp > 0 :
 	else:
 		ql_cmd = 'idl -e "apql_wrapper_manual,\'%s\',no_dbinsert=%i,data_dir=\'%s\',spectro_dir=\'%s\'"'  \
 			 % (listfile, not dbinsert, data_dir, spectro_dir)
-	print ql_cmd
+	print(ql_cmd)
 
 	ql_process = subprocess.Popen(ql_cmd, stderr=subprocess.PIPE, shell=True)
 	output=ql_process.communicate()[0] 
 	if output is not None:
-		print output
+		print(output)
 
 	# if quickred requested, also run apqr_wrapper_manual IDL code
 	if runquickred:
-		print 'RUNNING QUICKRED'
+		print('RUNNING QUICKRED')
 		if qr_output_file is not None:
 			qr_cmd = 'idl -e "apqr_wrapper_manual,\'%s\',no_dbinsert=%i,outfile=\'%s\',data_dir=\'%s\',spectro_dir=\'%s\',archive_dir=\'%s\',quickred_dir=\'%s\'"' \
 				% (qrlistfile, not dbinsert, qr_output_file, data_dir, spectro_dir, archive_dir, quickred_dir)
 		else:
 			qr_cmd = 'idl -e "apqr_wrapper_manual,\'%s\',no_dbinsert=%i,data_dir=\'%s\',spectro_dir=\'%s\',archive_dir=\'%s\',quickred_dir=\'%s\'"' \
 				% (qrlistfile, not dbinsert, data_dir, spectro_dir, archive_dir, quickred_dir)
-		print qr_cmd
+		print(qr_cmd)
 		
 		qr_process = subprocess.Popen(qr_cmd, stderr=subprocess.PIPE, shell=True)		
 		output=qr_process.communicate()[0] 
 		if output is not None:
-			print output
+			print(output)
 
 
 else:
