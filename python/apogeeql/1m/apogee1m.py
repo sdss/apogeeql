@@ -75,34 +75,34 @@ def commandICS(command,cmdID,ICSsoc):
     if command.find('dither')!=-1:
         exp = command.split()
         cmd = user+' '+str(cmdID + 1)+' '+'dither namedpos='+exp[1]
-        print 'cmd: '+cmd
+        print('cmd: '+cmd)
         ICSsoc.send(cmd+'\r\n')
         replystatICS = []
         while 1:
             ansICS = ICSsoc.recv(1024)
             replystatICS.append(ansICS)
             if ansICS.find(':')!= -1 : break
-        print replystatICS
+        print(replystatICS)
         return 0
     
     if command.find('expose')!=-1:
         exp = command.split()
         cmd = user+' '+str(cmdID + 1)+' '+'expose'+' '+'object=Object'+' '+'nreads='+exp[1]
-        print cmd
+        print(cmd)
         ICSsoc.send(cmd+'\r\n') # Send the full expose command to ICS
 
     if (command.find('dark')== 0):
         exp = command.split()
         if (int(exp[1])>1) and (int(exp[1])<100):
             cmd = user+' '+str(cmdID+1)+' '+'expose'+' '+'object=Dark'+' '+'nreads='+exp[1]
-            print cmd
+            print(cmd)
         #exposecmd = raw_input("Enter full expose command(i.e. apo.1m 0001 expose object=Dark nreads=3)\r\n") 
             ICSsoc.send(cmd+'\r\n') # Send the full expose command to ICS
     #ICSsoc.send(cmd+'\r\n') # Send the full expose command to ICS
 
     while 1:
         ICSans = ICSsoc.recv(1024) # The replies will be received in socket ICS.soc
-        print 'ICSans: ' + ICSans
+        print('ICSans: ' + ICSans)
         if ICSans.find('dayNumber=')!= -1:
             DayStart  = ICSans.find('dayNumber=')+len('dayNumber=')
             DayEnd    = len(ICSans)
@@ -142,23 +142,23 @@ while 1:
   command = client.recv(1024)
   #command = raw_input("Enter command for ICS(i.e. expose Dark 3):\r\n")
   testcmd = command.split()
-  print 'received command' + command , nread
-  print len(testcmd)
+  print('received command' + command , nread)
+  print(len(testcmd))
   if len(testcmd)>0:
     if testcmd[0] == 'done':
         ICSsoc.close()
         client.close()
         break
     if testcmd[0] in CMDLIST:
-        print 'commandICS: '+command
+        print('commandICS: '+command)
         ret=commandICS(command,cmdID,ICSsoc)
-        print 'returned: ',ret
-        print 'sending done'
+        print('returned: ',ret)
+        print('sending done')
         client.send('done '+str(ret)+'\n')
         cmdID = cmdID + 1
     else:
-        print 'Not Acceptable command'
+        print('Not Acceptable command')
   nread = nread + 1
   sys.stdout.flush()
 svr.close()
-print 'No longer taking commands'
+print('No longer taking commands')
