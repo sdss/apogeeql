@@ -14,12 +14,12 @@ def movefits(CurrentFileName,DayNumber,current_obs_ra,current_obs_dec,current_ob
         pathraw   = os.path.abspath(rawdirec) # Path to raw files
         MJD5      = int(DayNumber)+55562 # MJD calculted with daynumber
         direc = '/data-ql/data/'+str(MJD5) # Directory where edited FITS will be saved
-	if os.path.exists(direc)!=1:
-		os.mkdir(direc)
+        if os.path.exists(direc)!=1:
+            os.mkdir(direc)
         editdirec = '/data-ql/data/'+str(MJD5)+'/1m/' # Directory where edited FITS will be saved
-	t = editdirec
-	if os.path.exists(t)!=1:
-		os.mkdir(t)
+        t = editdirec
+        if os.path.exists(t)!=1:
+            os.mkdir(t)
         pathedit  = os.path.abspath(editdirec) # Path for edited FITS
         time      = str(datetime.datetime.now())
 
