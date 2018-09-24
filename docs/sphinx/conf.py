@@ -22,7 +22,7 @@ import sphinx_bootstrap_theme
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 
-from apogee import __version__
+from apogeeql import __version__
 from pkg_resources import parse_version
 
 
@@ -56,7 +56,7 @@ source_parsers = {
 master_doc = 'index'
 
 # General information about the project.
-project = 'apogee'
+project = 'apogeeql'
 copyright = '{0}, {1}'.format('2018', 'Jon Holtzman')
 author = 'Jon Holtzman'
 
@@ -215,7 +215,7 @@ html_sidebars = {'**': ['localtoc.html']}
 # -- Options for HTMLHelp output ------------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = '{0}pdoc'.format('apogee')
+htmlhelp_basename = '{0}pdoc'.format('apogeeql')
 
 
 # -- Options for LaTeX output ---------------------------------------------
@@ -251,7 +251,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'apogee', u'{0} Documentation'.format(project),
+    (master_doc, 'apogeeql', u'{0} Documentation'.format(project),
      [author], 1)
 ]
 
