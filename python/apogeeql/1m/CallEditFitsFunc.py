@@ -41,24 +41,24 @@ def movefits(CurrentFileName,DayNumber,current_obs_ra,current_obs_dec,current_ob
         # open the image with pyfits
         #img = pyfits.open(pathraw+'/'+CurrentFileName,do_not_scale_image_data=True)
         img = pyfits.open(pathraw+'/'+CurrentFileName,do_not_scale_image_data=True,uint16=True)
-        print 'checksum: ' +checksum
+        print('checksum: ' +checksum)
         if checksum != None:
           # validate the value of the checksum found (corresponding to DATASUM in pyfits)
           # calulate the datasum
           ds = img[0]._calculate_datasum('standard')
 
           # add a new CHECKSUM line to the header (pyfits.open removes it) with same comment
-          print 'updating header CHECKSUM ' + '0'*16 + cs_comment
+          print('updating header CHECKSUM ' + '0'*16 + cs_comment)
           img[0].header.update("CHECKSUM",'0'*16, cs_comment)
 
           # calulate a new checksum
           cs=img[0]._calculate_checksum(ds,'standard')
           img[0].header.update("CHECKSUM",cs, cs_comment)
-          print 'checksum ', checksum
-          print 'ds ', ds
-          print 'cs ', cs
+          print('checksum ', checksum)
+          print('ds ', ds)
+          print('cs ', cs)
           if cs != checksum:
-              print "CHECKSUM Failed for file " + CurrentFileName
+              print("CHECKSUM Failed for file " + CurrentFileName)
 
         # force these to be ints:
         # As of August 2013, the ICS writes them both as floats, but the
@@ -72,14 +72,14 @@ def movefits(CurrentFileName,DayNumber,current_obs_ra,current_obs_dec,current_ob
 
         strp = re.sub('.fits',"",CurrentFileName) # strip .fits of file name
         new  = strp + '.fits' # add edit.fits to file name
-        print 'before'
-        print img[0].header
+        print('before')
+        print(img[0].header)
         for i in range(len(NEWCARDS)):
 		img[0].header.update(NEWCARDS[i],NEWValues[i],'Taken from 1-meter')
-        print 'after'
-        print img[0].header
+        print('after')
+        print(img[0].header)
 	img[0].header.add_history('FITS file edited'+' '+time)
 	img.writeto(pathedit+'/'+new, checksum=True)
-        print 'Done editing',CurrentFileName
+        print('Done editing',CurrentFileName)
 	
 	return
