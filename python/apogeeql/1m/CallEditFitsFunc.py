@@ -75,11 +75,11 @@ def movefits(CurrentFileName,DayNumber,current_obs_ra,current_obs_dec,current_ob
         print('before')
         print(img[0].header)
         for i in range(len(NEWCARDS)):
-		img[0].header.update(NEWCARDS[i],NEWValues[i],'Taken from 1-meter')
+            img[0].header.update(NEWCARDS[i],NEWValues[i],'Taken from 1-meter')
         print('after')
         print(img[0].header)
-	img[0].header.add_history('FITS file edited'+' '+time)
-	img.writeto(pathedit+'/'+new, checksum=True)
+        img[0].header.add_history('FITS file edited'+' '+time)
+        img.writeto(pathedit+'/'+new, checksum=True)
         print('Done editing',CurrentFileName)
-	
-	return
+        
+        return
