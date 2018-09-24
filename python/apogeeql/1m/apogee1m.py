@@ -53,23 +53,23 @@ def commandICS(command,cmdID,ICSsoc):
         replystatICS = []
         while 1:
             ansICS = ICSsoc.recv(1024)
-            print 'ansICS: '+ansICS
+            print('ansICS: '+ansICS)
             replystatICS.append(ansICS)
             if ansICS.find(':')!= -1 : break
-        print replystatICS
+        print(replystatICS)
         return 0
 
     if command.find('shutter')!=-1:
         exp = command.split()
         cmd = user+' '+str(cmdID + 1)+' '+'shutter'+' '+exp[1]
-        print 'cmd: '+cmd
+        print('cmd: '+cmd)
         ICSsoc.send(cmd+'\r\n')
         replystatICS = []
         while 1:
             ansICS = ICSsoc.recv(1024)
             replystatICS.append(ansICS)
             if ansICS.find(':')!= -1 : break
-        print replystatICS
+        print(replystatICS)
         return 0
 
     if command.find('dither')!=-1:
