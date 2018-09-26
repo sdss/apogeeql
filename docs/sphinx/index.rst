@@ -56,37 +56,37 @@ quicklook is much more complicated than quickred because it returns
 information back to the actor to be sent to the hub. In practice, however,
 quicklook information has not really been used by the observers in SDSS-IV.
 
-Specifically, notifications are acted upon as follows
+Specifically, notifications are acted upon as follows:
 
-  - When the actor receives a pointingInfo notification, it
-  gets the plugmap information and creates a plPlugMapA file for use
-  by the IDL routines. It communicates this information to the IDL
-  processes by sending:
+When the actor receives a pointingInfo notification, it
+gets the plugmap information and creates a plPlugMapA file for use
+by the IDL routines. It communicates this information to the IDL
+processes by sending:
    plugMapInfo={plate},{scan_mjd},{scan_id},{filename}
-  to quicklook and quickred wrappers, who save the filename to 
-  be passed to the reduction routines.
+to quicklook and quickred wrappers, who save the filename to 
+be passed to the reduction routines.
 
-  - When the actor receives an exposureState notification with a status
-  of DONE, STOPPED, or FAILED, it sends:
+When the actor receives an exposureState notification with a status
+of DONE, STOPPED, or FAILED, it sends:
      UTR=DONE
-  to quicklook, and
+to quicklook, and
      UTR=DONE,{frameid},{mjd5},{exp_pk}
-  to the quickred wrapper. The quickred wrapper in turns starts the
-  reduction with:
+to the quickred wrapper. The quickred wrapper in turns starts the
+reduction with:
       apquickred,frameid,plugfile=plugfile,rawdir=rawdir,bundledir=bundledir,quickreddir=quickreddir,bpmid=bpmid,psfid=psfid,exp_pk=exp_pk,mjd5=mjd5,/NOWAIT
 
-  - When the actor receives an exposureWroteFile notification, if it is
-  the first read of an exposure, it creates a database entry and gets a
-  primary key for the exposure. With every exposureWroteFile notification, it sends:
+When the actor receives an exposureWroteFile notification, if it is
+the first read of an exposure, it creates a database entry and gets a
+primary key for the exposure. With every exposureWroteFile notification, it sends:
          s.sendLine('UTR=%s,%d,%d,%d' % (newfilename, Apogeeql.exp_pk, readnum, Apogeeql.numReadsCommanded))
-  to quicklook.
+to quicklook.
 
-  - When the actor receives an exposureWroteSummary notification, it copies
-  the summary-ICS file to the apogee computer.
+When the actor receives an exposureWroteSummary notification, it copies
+the summary-ICS file to the apogee computer.
 
-  - When the actor receives a ditherPosition notification, it sends
+When the actor receives a ditherPosition notification, it sends
          s.sendLine('ditherPosition=%f,%s' % (Apogeeql.ditherPos, Apogeeql.namedDitherPos))
-  to quicklook
+to quicklook
 
 
 * :ref:`What's new in apogeeql? <changelog>`
