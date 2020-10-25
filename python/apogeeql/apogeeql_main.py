@@ -44,7 +44,7 @@ from astropy.time import Time
 
 class QuickLookLineServer(LineReceiver):
     def connectionMade(self):
-        # the IDL end-of-line string is linefeed only (no carriage-return) 
+        # the IDL end-of-line string is linefeed only (no carriage-return)
         # we need to change the delimiter to be able to detect a full line
         # and have lineReceived method be called (otherwise it just sits there)
         self.delimiter = '\n'
@@ -92,14 +92,14 @@ class QuickLookLineServer(LineReceiver):
 
 class QLFactory(ClientFactory):
     protocol = QuickLookLineServer
-    def __init__(self, qlActor): 
+    def __init__(self, qlActor):
         self.qlActor=qlActor
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 class QuickRedLineServer(LineReceiver):
     def connectionMade(self):
-        # the IDL end-of-line string is linefeed only (no carriage-return) 
+        # the IDL end-of-line string is linefeed only (no carriage-return)
         # we need to change the delimiter to be able to detect a full line
         # and have lineReceived method be called (otherwise it just sits there)
         self.delimiter = '\n'
@@ -147,7 +147,7 @@ class QuickRedLineServer(LineReceiver):
 
 class QRFactory(ClientFactory):
     protocol = QuickRedLineServer
-    def __init__(self, qrActor): 
+    def __init__(self, qrActor):
         self.qrActor=qrActor
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -211,7 +211,7 @@ class Apogeeql(actorcore.Actor.SDSSActor):
       self.logger.info('Starting the Apogeeql Actor ...')
 
       # only the ics_datadir is defined in the cfg file - expect the datadir to be an
-      # environment variable set by the apgquicklook setup 
+      # environment variable set by the apgquicklook setup
       # (don't want to keep it in 2 different places)
       sdss_path=path.Path()
       try:
@@ -241,12 +241,12 @@ class Apogeeql(actorcore.Actor.SDSSActor):
       self.cdr_dir = self.config.get('apogeeql','cdr_dir')
       self.summary_dir = self.config.get('apogeeql','summary_dir')
       self.delFile = self.config.get('apogeeql','delFile')
-      self.qlPort = self.config.getint('apogeeql', 'qlPort') 
-      self.qlHost = self.config.get('apogeeql', 'qlHost') 
-      self.qrPort = self.config.getint('apogeeql', 'qrPort') 
-      self.qrHost = self.config.get('apogeeql', 'qrHost') 
-      self.criticalDiskSpace = self.config.get('apogeeql', 'criticalDiskSpace') 
-      self.seriousDiskSpace = self.config.get('apogeeql', 'seriousDiskSpace') 
+      self.qlPort = self.config.getint('apogeeql', 'qlPort')
+      self.qlHost = self.config.get('apogeeql', 'qlHost')
+      self.qrPort = self.config.getint('apogeeql', 'qrPort')
+      self.qrHost = self.config.get('apogeeql', 'qrHost')
+      self.criticalDiskSpace = self.config.get('apogeeql', 'criticalDiskSpace')
+      self.seriousDiskSpace = self.config.get('apogeeql', 'seriousDiskSpace')
       self.warningDiskSpace = self.config.get('apogeeql', 'warningDiskSpace')
 
       #
@@ -333,7 +333,8 @@ class Apogeeql(actorcore.Actor.SDSSActor):
          fname  = os.path.join(Apogeeql.actor.plugmap_dir,fname[0:p+3]+'A'+fname[p+4:])
 
          # print 'fname=',fname
-         Apogeeql.actor.makeApogeePlugMap(pm, fname)
+         if plate < 15000:
+            Apogeeql.actor.makeApogeePlugMap(pm, fname)
 
          # pass the info to IDL QL
          for s in Apogeeql.actor.qlSources:
@@ -359,8 +360,8 @@ class Apogeeql(actorcore.Actor.SDSSActor):
       #
       # exposureState EXPOSING SCIENCE 50 apRaw-0054003      -> mark start of exposure
       # utrReadState apRaw-0054003 READING 1 50              -> mark first UTR read status
-      # utrReadState apRaw-0054003 SAVING 1 50              
-      # utrReadState apRaw-0054003 DONE 1 50              
+      # utrReadState apRaw-0054003 SAVING 1 50
+      # utrReadState apRaw-0054003 DONE 1 50
       # exposureWroteFile apRaw-0054003-001.fits             -> mark first UTR read
       # exposureWroteFile apRaw-0054003-002.fits             -> mark first UTR read
       # exposureWroteSummary apRaw-0054003.fits              -> mark first CDS read
@@ -448,22 +449,26 @@ class Apogeeql(actorcore.Actor.SDSSActor):
          readnum=int(res[2].split('.')[0])
          expnum=int(res[1])
       except:
-         raise RuntimeError( "The filename doesn't match expected format (%s)" % (filename)) 
+         raise RuntimeError( "The filename doesn't match expected format (%s)" % (filename))
 
       if readnum == 1 or Apogeeql.exp_pk == 0:
 
-          # Get survey label FITS header (DLN 10/24/20)
-          try:
-              plateTyp = pyfits.getheader('/data/apogee/utr_cdr/' + str(mjd) + '/' + newfilename)['PLATETYP']
-              if plateTyp == 'BHM&MWM':
-                  surveyLabel = 'MWM'
-              else:
-                  surveyLabel = 'APOGEE-2'
-          except:
+          if Apogeeql.prevPlate > 15000:
+              surveyLabel = 'MWM'
+          else:
               surveyLabel = 'APOGEE-2'
 
+          try:
+             Apogeeql.exp_pk = addExposure(Apogeeql.actor.mysession, Apogeeql.prevScanId, Apogeeql.prevScanMJD,
+                                           Apogeeql.prevPlate, mjd, expnum, surveyLabel, starttime, exptime, Apogeeql.expType, 'apogeeQL')
+          except RuntimeError as e:
+             Apogeeql.actor.logger.error('Failed in call addExposure for exposureNo %d' %expnum)
+             Apogeeql.actor.logger.error('Exception: %s'%e)
+             raise RuntimeError('Failed in call addExposure for exposureNo %d' %expnum +'\n'+str(e))
+
+
          try:
-             Apogeeql.exp_pk = addExposure(Apogeeql.actor.mysession, Apogeeql.prevScanId, Apogeeql.prevScanMJD, 
+             Apogeeql.exp_pk = addExposure(Apogeeql.actor.mysession, Apogeeql.prevScanId, Apogeeql.prevScanMJD,
                                            Apogeeql.prevPlate, mjd, expnum, surveyLabel, starttime, exptime, Apogeeql.expType, 'apogeeQL')
          except RuntimeError as e:
              Apogeeql.actor.logger.error('Failed in call addExposure for exposureNo %d' %expnum)
@@ -509,7 +514,7 @@ class Apogeeql(actorcore.Actor.SDSSActor):
          shutil.copy2(infile,outfile)
          # print "shutil.copy2 took %f seconds" % (time.time()-t0)
       except:
-         raise RuntimeError( "Failed to copy the summary file (%s)" % (filename)) 
+         raise RuntimeError( "Failed to copy the summary file (%s)" % (filename))
 
    @staticmethod
    def ditherPositionCB(keyVar):
@@ -530,7 +535,7 @@ class Apogeeql(actorcore.Actor.SDSSActor):
 
    def connectQuickLook(self):
       '''open a socket through twisted to send/receive information to/from apogee_IDL'''
-      # get the port from the configuratio file 
+      # get the port from the configuratio file
       reactor.listenTCP(self.qlPort, QLFactory(self))
 
    def startQuickLook(self):
@@ -590,7 +595,7 @@ class Apogeeql(actorcore.Actor.SDSSActor):
 
    def connectQuickReduce(self):
       '''open a socket through twisted to send/receive information to/from apqr_wrapper IDL'''
-      # get the port from the configuratio file 
+      # get the port from the configuratio file
       reactor.listenTCP(self.qrPort, QRFactory(self))
 
    def startQuickReduce(self):
@@ -685,7 +690,7 @@ class Apogeeql(actorcore.Actor.SDSSActor):
       # expecting something like: apRaw-DDDDXXXX-RRR.fits
       # where:
       # DDDD is a 4 digit day number starting with 0000 for Jan 1, 2011 which is MJD=55562
-      # XXXX is a 4 digit exposure number of the day, starting with 0001 
+      # XXXX is a 4 digit exposure number of the day, starting with 0001
       # RRR is a 3 digit read number starting with 001 for the first read
       #
       # We are using the SDSS version of MJD which is MJD+0.3 days, which
@@ -703,7 +708,7 @@ class Apogeeql(actorcore.Actor.SDSSActor):
          mjd = int(res[1][:4])+int(self.startOfSurvey)
          outdir = os.path.join(self.datadir,str(mjd))
       except:
-         raise RuntimeError( "The filename doesn't match expected format (%s)" % (filename)) 
+         raise RuntimeError( "The filename doesn't match expected format (%s)" % (filename))
 
       # create directory if it doesn't exist
       if not os.path.isdir(outdir):
@@ -757,12 +762,12 @@ class Apogeeql(actorcore.Actor.SDSSActor):
       del hdulist[0].header['BZERO']
       hdulist[0].header.update('BSCALE',bscale,after='GCOUNT')
       hdulist[0].header.update('BZERO',bzero,after='BSCALE')
-     
-      if self.location == 'APO' : 
+
+      if self.location == 'APO' :
           hdulist[0].header.update('TELESCOP' , 'SDSS 2-5m')
       hdulist[0].header.update('FILENAME' ,outFile)
       hdulist[0].header.update('EXPTYPE' ,self.expType)
-      
+
       # get the calibration box status
       lampqrtz, lampune, lampthar, lampshtr, lampcntl = self.getCalibBoxStatus()
       hdulist[0].header.update('LAMPQRTZ',lampqrtz, 'CalBox Quartz Lamp Status')
@@ -790,7 +795,7 @@ class Apogeeql(actorcore.Actor.SDSSActor):
           seeing=0.0
       hdulist[0].header.update('SEEING',seeing, 'RMS seeing from guide fibers')
 
-      # starttime is MJD in seconds      
+      # starttime is MJD in seconds
       time_string = hdulist[0].header['DATE-OBS']
       starttime = Time(time_string,format='isot',scale='utc').mjd * 86400.0
 
@@ -862,17 +867,17 @@ class Apogeeql(actorcore.Actor.SDSSActor):
              break
           else:
              pos+=1
-       
+
        p0['symbols']['PLUGMAPOBJ'].append('tmass_style')
        p0['PLUGMAPOBJ']['tmass_style']=[]
        for i in range(p0.size('PLUGMAPOBJ')):
           p0['PLUGMAPOBJ']['tmass_style'].append('-')
 
-       # get the needed information from the plate_hole 
+       # get the needed information from the plate_hole
        ph = self.mysession.query(Fiber).join(PlateHole).\
              filter(Fiber.pl_plugmap_m_pk==plugmap.pk).order_by(Fiber.fiber_id).\
              values('fiber_id','tmass_j','tmass_h','tmass_k','apogee_target1','apogee_target2')
-                         
+
        # we'll use the target1 and target2 to define the type of target
        # these are 32 bits each with each bit indicating a type
        skymask = 16
@@ -885,7 +890,7 @@ class Apogeeql(actorcore.Actor.SDSSActor):
        for fid, j_mag, h_mag, k_mag, t1, t2 in ph:
            count = p0['PLUGMAPOBJ']['fiberId'].count(fid)
            if count >= 1:
-              # we have more than one entry for this fiberId -> get the APOGEE 
+              # we have more than one entry for this fiberId -> get the APOGEE
               ind = -1
               for i in range(count):
                   pos = p0['PLUGMAPOBJ']['fiberId'][ind+1:].index(fid)
@@ -911,7 +916,7 @@ class Apogeeql(actorcore.Actor.SDSSActor):
                      p0['PLUGMAPOBJ']['objType'][ind] = 'EXTOBJ'
                   elif (t2 & starmask) == 0 and (t1 & extmask) ==0:
                     p0['PLUGMAPOBJ']['objType'][ind] = 'STAR'
-        
+
        # delete file if it already exists
        if os.path.isfile(newfilename):
           os.remove(newfilename)
@@ -936,8 +941,8 @@ class Apogeeql(actorcore.Actor.SDSSActor):
        if os.path.isfile(archivefile):
           os.remove(archivefile)
        p0.write(archivefile)
- 
-       return 
+
+       return
 
    def getCalibBoxStatus(self):
        """Insert a new row in the platedb.exposure table """
@@ -956,7 +961,7 @@ class Apogeeql(actorcore.Actor.SDSSActor):
 
        # expecting something like: apRaw-DDDDXXXX
        # make sure a filebase was passed
-       if not filebase: 
+       if not filebase:
            return
 
        res=filebase.split('-')
@@ -965,8 +970,8 @@ class Apogeeql(actorcore.Actor.SDSSActor):
           mjd = int(res[1][:4])+int(self.startOfSurvey)
           outdir = os.path.join(self.datadir,str(mjd))
        except:
-          raise RuntimeError( "The filename doesn't match expected format (%s)" % (filename)) 
- 
+          raise RuntimeError( "The filename doesn't match expected format (%s)" % (filename))
+
        lst = glob.glob(os.path.join(indir,filebase+'*.fits'))
        lst.sort()
        count=0
@@ -981,7 +986,7 @@ class Apogeeql(actorcore.Actor.SDSSActor):
                if not os.path.exists(outfile):
                    # copy the file if appendFitsKeywords did not work
                    shutil.copy(infile,outdir)
- 
+
        if count > 0:
            self.bcast.warn('text="%s had %d missing UTR"' % (filebase,count))
            self.logger.info('APOGEEQL -> had %d missing UTR' % (count))
@@ -1080,5 +1085,3 @@ if __name__ == '__main__':
        main()
    except Exception as e:
        traceback.print_exc()
-
-
