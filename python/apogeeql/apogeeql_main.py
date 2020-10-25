@@ -22,6 +22,8 @@ import pyfits, warnings
 import actorkeys
 import traceback
 
+import apogeeql
+
 #
 # Import sdss3logging before logging if you want to use it
 #
@@ -184,7 +186,8 @@ class Apogeeql(actorcore.Actor.Actor):
       actorcore.Actor.Actor.__init__(self, name, productName=productName, configFile=configFile)
 
       Apogeeql.actor=self
-      self.headURL = '$HeadURL$'
+
+      self.version = apogeeql.__version__
 
       self.logger.setLevel(debugLevel)
       self.logger.propagate = True
