@@ -306,7 +306,8 @@ class Apogeeql(actorcore.Actor.Actor):
          fname  = os.path.join(Apogeeql.actor.plugmap_dir,fname[0:p+3]+'A'+fname[p+4:])
 
          # print 'fname=',fname
-         Apogeeql.actor.makeApogeePlugMap(pm, fname)
+         if plate < 15000:
+            Apogeeql.actor.makeApogeePlugMap(pm, fname)
 
          # pass the info to IDL QL
          for s in Apogeeql.actor.qlSources:
