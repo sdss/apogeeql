@@ -314,12 +314,13 @@ class Apogeeql(actorcore.Actor.SDSSActor):
          Apogeeql.actor.apogeeSurveyPk = survey[0].pk
 
       if plate != Apogeeql.prevPlate or cartridge != Apogeeql.prevCartridge or pointing != Apogeeql.prevPointing:
-         # we need to ignore all plates that are not for APOGEE or MANGA
-         survey=Apogeeql.actor.mysession.query(Survey).join(PlateToSurvey).join(Plate).filter(Plate.plate_id==plate)
-         if survey.count() > 0:
-              if survey[0].label.upper().find("APOGEE") == -1 and survey[0].label.upper().find("MANGA") == -1:
-                  # not an apogee or marvels plate - just skip
-                  return
+         # Commented out since APOGEE will always be on during SDSS-V (DLN 10/24/20)
+         ## we need to ignore all plates that are not for APOGEE or MANGA
+         #survey=Apogeeql.actor.mysession.query(Survey).join(PlateToSurvey).join(Plate).filter(Plate.plate_id==plate)
+         #if survey.count() > 0:
+         #     if survey[0].label.upper().find("APOGEE") == -1 and survey[0].label.upper().find("MANGA") == -1:
+         #         # not an apogee or marvels plate - just skip
+         #         return
 
          # we need to extract and pass a new plugmap to IDL QuickLook
          pm = Apogeeql.actor.getPlPlugMapM(Apogeeql.actor.mysession, cartridge, plate, pointing)
@@ -451,9 +452,16 @@ class Apogeeql(actorcore.Actor.SDSSActor):
 
       if readnum == 1 or Apogeeql.exp_pk == 0:
 
-         #Create new exposure object
-         #currently hard-coded for survey=APOGEE-2
-         surveyLabel='APOGEE-2'
+          # Get survey label FITS header (DLN 10/24/20)
+          try:
+              plateTyp = pyfits.getheader('/data/apogee/utr_cdr/' + str(mjd) + '/' + newfilename)['PLATETYP']
+              if plateTyp == 'BHM&MWM':
+                  surveyLabel = 'MWM'
+              else:
+                  surveyLabel = 'APOGEE-2'
+          except:
+              surveyLabel = 'APOGEE-2'
+
          try:
              Apogeeql.exp_pk = addExposure(Apogeeql.actor.mysession, Apogeeql.prevScanId, Apogeeql.prevScanMJD, 
                                            Apogeeql.prevPlate, mjd, expnum, surveyLabel, starttime, exptime, Apogeeql.expType, 'apogeeQL')
