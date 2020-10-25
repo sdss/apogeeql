@@ -429,19 +429,15 @@ class Apogeeql(actorcore.Actor.Actor):
          #Create new exposure object
          #currently hard-coded for survey=APOGEE-2
 
-         try:
-              plateTyp = pyfits.getheader('/data/apogee/utr_cdr/' + str(mjd) + '/' + newfilename)['PLATETYP']
-              if plateTyp == 'BHM&MWM':
-                  surveyLabel = 'MWM'
-              else:
-                  surveyLabel = 'APOGEE-2'
-         except:
+          if Apogeeql.prevPlate > 15000:
+              surveyLabel = 'MWM'
+          else:
               surveyLabel = 'APOGEE-2'
 
-         try:
+          try:
              Apogeeql.exp_pk = addExposure(Apogeeql.actor.mysession, Apogeeql.prevScanId, Apogeeql.prevScanMJD,
                                            Apogeeql.prevPlate, mjd, expnum, surveyLabel, starttime, exptime, Apogeeql.expType, 'apogeeQL')
-         except RuntimeError as e:
+          except RuntimeError as e:
              Apogeeql.actor.logger.error('Failed in call addExposure for exposureNo %d' %expnum)
              Apogeeql.actor.logger.error('Exception: %s'%e)
              raise RuntimeError('Failed in call addExposure for exposureNo %d' %expnum +'\n'+str(e))
