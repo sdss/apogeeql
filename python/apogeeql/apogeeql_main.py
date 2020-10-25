@@ -305,8 +305,9 @@ class Apogeeql(actorcore.Actor.Actor):
          # replace plPlugMapM-xxxx by plPlugMapA-xxxx
          # str() to convert from unicode, as twisted can't take it.
          fname = str(pm.filename)
-         p = fname.find('MapM')
-         fname  = os.path.join(Apogeeql.actor.plugmap_dir,fname[0:p+3]+'A'+fname[p+4:])
+         # We are using plPlugMapM from now on (DLN, 10/25/20)
+         #p = fname.find('MapM')
+         #fname  = os.path.join(Apogeeql.actor.plugmap_dir,fname[0:p+3]+'A'+fname[p+4:])
 
          # print 'fname=',fname
          if plate < 15000:
