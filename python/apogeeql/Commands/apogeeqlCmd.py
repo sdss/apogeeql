@@ -35,16 +35,11 @@ class apogeeqlCmd(object):
          ('ql', '<cmd>', self.quicklook),
          ('doSomething', '<count>', self.doSomething),
          ('passAlong', 'actor <cmd>', self.passAlong),
-         ('version', '', self.version)
       ]
 
    def ping(self, cmd):
       '''Query the actor for liveness/happiness.'''
       cmd.finish("text='Present and (probably) well'")
-
-   def version(self, cmd):
-      """Returns the version."""
-      cmd.finish('version="{}"'.format(self.actor.version))
 
    def status(self, cmd):
       '''Report status and version; obtain and send current data'''
