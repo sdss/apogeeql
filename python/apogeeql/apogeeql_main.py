@@ -822,10 +822,10 @@ class Apogeeql(actorcore.Actor.Actor):
        par = yanny.yanny()
        par._contents = data
        par._parse()
+       p0 = par
 
        # Only do this for APOGEE-1/2 plates
        if Apogeeql.prevPlate < 15000:
-           p0=par
            # update the definition of PLUGMAPOBJ
            pos=0
            for t in p0.tables():
