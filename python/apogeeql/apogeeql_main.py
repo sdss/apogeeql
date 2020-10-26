@@ -823,64 +823,67 @@ class Apogeeql(actorcore.Actor.Actor):
        par = yanny.yanny()
        par._contents = data
        par._parse()
-       p0=par
-       # update the definition of PLUGMAPOBJ
-       pos=0
-       for t in p0.tables():
-          if t=='PLUGMAPOBJ':
-             p0['symbols']['struct'][pos] = (p0['symbols']['struct'][pos]).replace('secTarget;','secTarget;\n char tmass_style[30];')
-             break
-          else:
-             pos+=1
 
-       p0['symbols']['PLUGMAPOBJ'].append('tmass_style')
-       p0['PLUGMAPOBJ']['tmass_style']=[]
-       for i in range(p0.size('PLUGMAPOBJ')):
-          p0['PLUGMAPOBJ']['tmass_style'].append('-')
+       # Only do this for APOGEE-1/2 plates
+       if Apogeeql.prevPlate < 15000:
+           p0=par
+           # update the definition of PLUGMAPOBJ
+           pos=0
+           for t in p0.tables():
+               if t=='PLUGMAPOBJ':
+                   p0['symbols']['struct'][pos] = (p0['symbols']['struct'][pos]).replace('secTarget;','secTarget;\n char tmass_style[30];')
+                   break
+               else:
+                   pos+=1
 
-       # get the needed information from the plate_hole
-       ph = self.mysession.query(Fiber).join(PlateHole).\
-             filter(Fiber.pl_plugmap_m_pk==plugmap.pk).order_by(Fiber.fiber_id).\
-             values('fiber_id','tmass_j','tmass_h','tmass_k','apogee_target1','apogee_target2')
+           p0['symbols']['PLUGMAPOBJ'].append('tmass_style')
+           p0['PLUGMAPOBJ']['tmass_style']=[]
+           for i in range(p0.size('PLUGMAPOBJ')):
+               p0['PLUGMAPOBJ']['tmass_style'].append('-')
 
-       # we'll use the target1 and target2 to define the type of target
-       # these are 32 bits each with each bit indicating a type
-       skymask = 16
-       hotmask = 512
-       extmask = 1024
-       starmask = skymask | hotmask
+           # get the needed information from the plate_hole
+           ph = self.mysession.query(Fiber).join(PlateHole).\
+               filter(Fiber.pl_plugmap_m_pk==plugmap.pk).order_by(Fiber.fiber_id).\
+               values('fiber_id','tmass_j','tmass_h','tmass_k','apogee_target1','apogee_target2')
 
-       # loop through the list and update the PLUGMAPOBJ
-       tmass_style = 'Unknown'
-       for fid, j_mag, h_mag, k_mag, t1, t2 in ph:
-           count = p0['PLUGMAPOBJ']['fiberId'].count(fid)
-           if count >= 1:
-              # we have more than one entry for this fiberId -> get the APOGEE
-              ind = -1
-              for i in range(count):
-                  pos = p0['PLUGMAPOBJ']['fiberId'][ind+1:].index(fid)
-                  ind = pos+ind+1
-                  if p0['PLUGMAPOBJ']['spectrographId'][ind] == 2:
-                      break
+           # we'll use the target1 and target2 to define the type of target
+           # these are 32 bits each with each bit indicating a type
+           skymask = 16
+           hotmask = 512
+           extmask = 1024
+           starmask = skymask | hotmask
+           
+           # loop through the list and update the PLUGMAPOBJ
+           tmass_style = 'Unknown'
+           for fid, j_mag, h_mag, k_mag, t1, t2 in ph:
+               count = p0['PLUGMAPOBJ']['fiberId'].count(fid)
+               if count >= 1:
+                   # we have more than one entry for this fiberId -> get the APOGEE
+                   ind = -1
+                   for i in range(count):
+                       pos = p0['PLUGMAPOBJ']['fiberId'][ind+1:].index(fid)
+                       ind = pos+ind+1
+                       if p0['PLUGMAPOBJ']['spectrographId'][ind] == 2:
+                           break
 
-                 # print "fid=%d    t1=%d   t2=%d" % (fid,t1,t2)
-                 # only modify the fibers for APOGEE (2) that are not sky fibers
-              if p0['PLUGMAPOBJ']['spectrographId'][ind] == 2 and p0['PLUGMAPOBJ']['objType'][ind] != 'SKY':
-                  if not (j_mag and h_mag and k_mag):
-                      #cmd.warn('text="some IR mags are bad: j=%s h=%s k=%s"' % (j_mag, h_mag, k_mag))
-                      logging.warn('text="some IR mags are bad: j=%s h=%s k=%s"' % (j_mag, h_mag, k_mag))
-                  p0['PLUGMAPOBJ']['mag'][ind][0] = j_mag if j_mag else 0.0
-                  p0['PLUGMAPOBJ']['mag'][ind][1] = h_mag if h_mag else 0.0
-                  p0['PLUGMAPOBJ']['mag'][ind][2] = k_mag if k_mag else 0.0
-                  p0['PLUGMAPOBJ']['tmass_style'][ind] = tmass_style
-                  if (t2 & skymask) > 0:
-                     p0['PLUGMAPOBJ']['objType'][ind] = 'SKY'
-                  elif (t2 & hotmask) > 0:
-                     p0['PLUGMAPOBJ']['objType'][ind] = 'HOT_STD'
-                  elif (t1 & extmask) > 0:
-                     p0['PLUGMAPOBJ']['objType'][ind] = 'EXTOBJ'
-                  elif (t2 & starmask) == 0 and (t1 & extmask) ==0:
-                    p0['PLUGMAPOBJ']['objType'][ind] = 'STAR'
+                   # print "fid=%d    t1=%d   t2=%d" % (fid,t1,t2)
+                   # only modify the fibers for APOGEE (2) that are not sky fibers
+                   if p0['PLUGMAPOBJ']['spectrographId'][ind] == 2 and p0['PLUGMAPOBJ']['objType'][ind] != 'SKY':
+                       if not (j_mag and h_mag and k_mag):
+                           #cmd.warn('text="some IR mags are bad: j=%s h=%s k=%s"' % (j_mag, h_mag, k_mag))
+                           logging.warn('text="some IR mags are bad: j=%s h=%s k=%s"' % (j_mag, h_mag, k_mag))
+                       p0['PLUGMAPOBJ']['mag'][ind][0] = j_mag if j_mag else 0.0
+                       p0['PLUGMAPOBJ']['mag'][ind][1] = h_mag if h_mag else 0.0
+                       p0['PLUGMAPOBJ']['mag'][ind][2] = k_mag if k_mag else 0.0
+                       p0['PLUGMAPOBJ']['tmass_style'][ind] = tmass_style
+                       if (t2 & skymask) > 0:
+                           p0['PLUGMAPOBJ']['objType'][ind] = 'SKY'
+                       elif (t2 & hotmask) > 0:
+                           p0['PLUGMAPOBJ']['objType'][ind] = 'HOT_STD'
+                       elif (t1 & extmask) > 0:
+                           p0['PLUGMAPOBJ']['objType'][ind] = 'EXTOBJ'
+                       elif (t2 & starmask) == 0 and (t1 & extmask) ==0:
+                           p0['PLUGMAPOBJ']['objType'][ind] = 'STAR'
 
        # delete file if it already exists
        if os.path.isfile(newfilename):
