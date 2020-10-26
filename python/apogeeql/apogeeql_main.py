@@ -309,8 +309,7 @@ class Apogeeql(actorcore.Actor.Actor):
          fname  = os.path.join(Apogeeql.actor.plugmap_dir,fname[0:p+3]+'A'+fname[p+4:])
 
          # print 'fname=',fname
-         if plate < 15000:
-            Apogeeql.actor.makeApogeePlugMap(pm, fname)
+         Apogeeql.actor.makeApogeePlugMap(pm, fname)
 
          # pass the info to IDL QL
          for s in Apogeeql.actor.qlSources:
@@ -824,21 +823,22 @@ class Apogeeql(actorcore.Actor.Actor):
        par._parse()
        p0 = par
 
+       # update the definition of PLUGMAPOBJ
+       pos=0
+       for t in p0.tables():
+           if t=='PLUGMAPOBJ':
+               p0['symbols']['struct'][pos] = (p0['symbols']['struct'][pos]).replace('secTarget;','secTarget;\n char tmass_style[30];')
+               break
+           else:
+               pos+=1
+
+       p0['symbols']['PLUGMAPOBJ'].append('tmass_style')
+       p0['PLUGMAPOBJ']['tmass_style']=[]
+       for i in range(p0.size('PLUGMAPOBJ')):
+           p0['PLUGMAPOBJ']['tmass_style'].append('-')
+
        # Only do this for APOGEE-1/2 plates
        if Apogeeql.prevPlate < 15000:
-           # update the definition of PLUGMAPOBJ
-           pos=0
-           for t in p0.tables():
-               if t=='PLUGMAPOBJ':
-                   p0['symbols']['struct'][pos] = (p0['symbols']['struct'][pos]).replace('secTarget;','secTarget;\n char tmass_style[30];')
-                   break
-               else:
-                   pos+=1
-
-           p0['symbols']['PLUGMAPOBJ'].append('tmass_style')
-           p0['PLUGMAPOBJ']['tmass_style']=[]
-           for i in range(p0.size('PLUGMAPOBJ')):
-               p0['PLUGMAPOBJ']['tmass_style'].append('-')
 
            # get the needed information from the plate_hole
            ph = self.mysession.query(Fiber).join(PlateHole).\
