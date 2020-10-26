@@ -838,7 +838,7 @@ class Apogeeql(actorcore.Actor.Actor):
            p0['PLUGMAPOBJ']['tmass_style'].append('-')
 
        # Only do this for APOGEE-1/2 plates
-       if Apogeeql.prevPlate < 15000:
+       if (Apogeeql.prevPlate > -1) and (Apogeeql.prevPlate < 15000):
 
            # get the needed information from the plate_hole
            ph = self.mysession.query(Fiber).join(PlateHole).\
