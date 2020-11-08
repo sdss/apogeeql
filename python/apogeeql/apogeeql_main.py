@@ -309,7 +309,7 @@ class Apogeeql(actorcore.Actor.Actor):
          fname  = os.path.join(Apogeeql.actor.plugmap_dir,fname[0:p+3]+'A'+fname[p+4:])
 
          # print 'fname=',fname
-         Apogeeql.actor.makeApogeePlugMap(pm, fname)
+         Apogeeql.actor.makeApogeePlugMap(pm, fname, plate)
 
          # pass the info to IDL QL
          for s in Apogeeql.actor.qlSources:
@@ -808,7 +808,7 @@ class Apogeeql(actorcore.Actor.Actor):
 
        return pm
 
-   def makeApogeePlugMap(self, plugmap, newfilename):
+   def makeApogeePlugMap(self, plugmap, newfilename, plate):
        """Return the plPlugMapM given a plateId and pointingName"""
 
        from sqlalchemy import and_
@@ -838,7 +838,7 @@ class Apogeeql(actorcore.Actor.Actor):
            p0['PLUGMAPOBJ']['tmass_style'].append('-')
 
        # Only do this for APOGEE-1/2 plates
-       if (Apogeeql.prevPlate > -1) and (Apogeeql.prevPlate < 15000):
+       if (plate < 15000):
 
            # get the needed information from the plate_hole
            ph = self.mysession.query(Fiber).join(PlateHole).\
