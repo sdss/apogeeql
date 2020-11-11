@@ -837,13 +837,46 @@ class Apogeeql(actorcore.Actor.Actor):
        for i in range(p0.size('PLUGMAPOBJ')):
            p0['PLUGMAPOBJ']['tmass_style'].append('-')
 
-       # Only do this for APOGEE-1/2 plates
-       if (plate < 15000):
 
-           # get the needed information from the plate_hole
-           ph = self.mysession.query(Fiber).join(PlateHole).\
-               filter(Fiber.pl_plugmap_m_pk==plugmap.pk).order_by(Fiber.fiber_id).\
-               values('fiber_id','tmass_j','tmass_h','tmass_k','apogee_target1','apogee_target2')
+       # get the needed information from the plate_hole
+       ph = self.mysession.query(Fiber).join(PlateHole).\
+           filter(Fiber.pl_plugmap_m_pk==plugmap.pk).order_by(Fiber.fiber_id).\
+           values('fiber_id','tmass_j','tmass_h','tmass_k','apogee_target1','apogee_target2')
+
+
+       # SDSS-V plates
+       if (plate >= 15000):
+
+           # loop through the list and update the PLUGMAPOBJ
+           tmass_style = 'Unknown'
+           for fid, j_mag, h_mag, k_mag, t1, t2 in ph:
+               count = p0['PLUGMAPOBJ']['fiberId'].count(fid)
+               if count >= 1:
+                   # we have more than one entry for this fiberId -> get the APOGEE
+                   ind = -1
+                   for i in range(count):
+                       pos = p0['PLUGMAPOBJ']['fiberId'][ind+1:].index(fid)
+                       ind = pos+ind+1
+                       if p0['PLUGMAPOBJ']['spectrographId'][ind] == 2:
+                           break
+
+                   # print "fid=%d    t1=%d   t2=%d" % (fid,t1,t2)
+                   # only modify the fibers for APOGEE (2) that are not sky fibers
+                   if p0['PLUGMAPOBJ']['spectrographId'][ind] == 2 and p0['PLUGMAPOBJ']['objType'][ind] != 'SKY':
+                       if not (j_mag and h_mag and k_mag):
+                           #cmd.warn('text="some IR mags are bad: j=%s h=%s k=%s"' % (j_mag, h_mag, k_mag))
+                           logging.warn('text="some IR mags are bad: j=%s h=%s k=%s"' % (j_mag, h_mag, k_mag))
+                       p0['PLUGMAPOBJ']['mag'][ind][0] = j_mag if j_mag else 0.0
+                       p0['PLUGMAPOBJ']['mag'][ind][1] = h_mag if h_mag else 0.0
+                       p0['PLUGMAPOBJ']['mag'][ind][2] = k_mag if k_mag else 0.0
+                       p0['PLUGMAPOBJ']['tmass_style'][ind] = tmass_style
+                       if (p0['PLUGMAPOBJ']['objType'][ind] == 'STAR_BHB'):
+                           p0['PLUGMAPOBJ']['objType'][ind] = 'STAR'
+                       elif (p0['PLUGMAPOBJ']['objType'][ind] == 'SPECTROPHOTO_STD'):
+                           p0['PLUGMAPOBJ']['objType'][ind] = 'HOT_STD'
+
+       # APOGEE-1/2 plates
+       else:
 
            # we'll use the target1 and target2 to define the type of target
            # these are 32 bits each with each bit indicating a type
