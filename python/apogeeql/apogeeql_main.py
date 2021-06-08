@@ -35,6 +35,12 @@ from sdss.utilities import yanny
 import RO.Astro.Tm.MJDFromPyTuple as astroMJD
 from astropy.time import Time
 
+from apogee_mountain import quicklookThread, bundleThread
+
+# python threading code
+from queue import Queue
+from threading import Thread
+
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
@@ -312,11 +318,12 @@ class Apogeeql(actorcore.Actor.Actor):
          Apogeeql.actor.makeApogeePlugMap(pm, fname, plate)
 
          # pass the info to IDL QL
-         for s in Apogeeql.actor.qlSources:
-             s.sendLine('plugMapInfo=%s,%s,%s,%s' % (plate, pm.fscan_mjd, pm.fscan_id, fname))
-         for s in Apogeeql.actor.qrSources:
-             s.sendLine('plugMapInfo=%s,%s,%s,%s' % (plate, pm.fscan_mjd, pm.fscan_id, fname))
-
+         #for s in Apogeeql.actor.qlSources:
+         #    s.sendLine('plugMapInfo=%s,%s,%s,%s' % (plate, pm.fscan_mjd, pm.fscan_id, fname))
+         #for s in Apogeeql.actor.qrSources:
+         #    s.sendLine('plugMapInfo=%s,%s,%s,%s' % (plate, pm.fscan_mjd, pm.fscan_id, fname))
+         Apogeeql.actor.ql_queue.put('plugMapInfo=%s,%s,%s,%s' % (plate, pm.fscan_mjd, pm.fscan_id, fname))
+         
          # print 'plugMapFilename=%s' % (fname)
          Apogeeql.prevPointing = pointing
          Apogeeql.prevPlate = plate
@@ -373,10 +380,13 @@ class Apogeeql(actorcore.Actor.Actor):
             Apogeeql.frameid = res[1][:8]
             mjd5 = int(Apogeeql.frameid[:4]) + int(Apogeeql.actor.startOfSurvey)
             # do something for the quickreduction at the end of an exposure
-            for s in Apogeeql.qlSources:
-               s.sendLine('UTR=DONE')
-            for s in Apogeeql.qrSources:
-               s.sendLine('UTR=DONE,%s,%d,%s' % (Apogeeql.frameid, mjd5, Apogeeql.exp_pk))
+            #for s in Apogeeql.qlSources:
+            #   s.sendLine('UTR=DONE')
+            #for s in Apogeeql.qrSources:
+            #   s.sendLine('UTR=DONE,%s,%d,%s' % (Apogeeql.frameid, mjd5, Apogeeql.exp_pk))
+            Apogeeql.ql_queue.put('UTR=DONE')
+            Apogeeql.bndl_queue.put('UTR=DONE,%s,%d,%s' % (Apogeeql.frameid, mjd5, Apogeeql.exp_pk))            
+               
       elif Apogeeql.expState.upper() != 'STOPPING':
          # when a stop was requested, a couple of images will still be coming in
          # only change the startExp in other cases
@@ -444,10 +454,11 @@ class Apogeeql(actorcore.Actor.Actor):
              Apogeeql.actor.logger.error('Exception: %s'%e)
              raise RuntimeError('Failed in call addExposure for exposureNo %d' %expnum +'\n'+str(e))
 
+      #for s in Apogeeql.qlSources:
+      #   s.sendLine('UTR=%s,%d,%d,%d' % (newfilename, Apogeeql.exp_pk, readnum, Apogeeql.numReadsCommanded))
+      Apogeeql.ql_queue.put('UTR=%s,%d,%d,%d' % (newfilename, Apogeeql.exp_pk, readnum, Apogeeql.numReadsCommanded))
 
-      for s in Apogeeql.qlSources:
-         s.sendLine('UTR=%s,%d,%d,%d' % (newfilename, Apogeeql.exp_pk, readnum, Apogeeql.numReadsCommanded))
-
+         
    @staticmethod
    def exposureWroteSummaryCB(keyVar):
 
@@ -498,151 +509,63 @@ class Apogeeql(actorcore.Actor.Actor):
       # save the current dither pixel and named position
       Apogeeql.ditherPos = float(keyVar[0])
       Apogeeql.namedDitherPos = keyVar[1]
-      for s in Apogeeql.actor.qlSources:
-          s.sendLine('ditherPosition=%f,%s' % (Apogeeql.ditherPos, Apogeeql.namedDitherPos))
-
-
-   def connectQuickLook(self):
-      '''open a socket through twisted to send/receive information to/from apogee_IDL'''
-      # get the port from the configuratio file
-      #reactor.listenTCP(self.qlPort, QLFactory(self))
-
-      # Do I even need this with the python thread???
-      pass
-  
+      #for s in Apogeeql.actor.qlSources:
+      #    s.sendLine('ditherPosition=%f,%s' % (Apogeeql.ditherPos, Apogeeql.namedDitherPos))
+      Apogeeql.actor.ql_queue.put('ditherPosition=%f,%s' % (Apogeeql.ditherPos, Apogeeql.namedDitherPos))
+      
       
    def startQuickLook(self):
       '''Open a twisted reactor to communicate with IDL socket'''
       #
-      # check if an apogeeql_IDL process is already running before starting a new one
-      if self.ql_pid > 0:
+      # check if an quicklook thread is already running before starting a new one
+      if self.ql_running:
          self.stopQuickLook()
 
-      # spawn the apogeeql IDL process and don't wait for its completion
+      # start the quicklook python thread
       try:
-         ## get the string corresponding to the command to start the IDL quicklook process
-         #qlCommand = self.config.get('apogeeql','qlCommandName')
-         #qlCommand = qlCommand.strip('"')
-         ## this adds the arguments to the IDL command line
-         #qlCommand += " -args %s %s" % (self.qlHost, self.qlPort)
-         ## Popen does NOWAIT by default
-         #ql_process = subprocess.Popen(qlCommand.split(), stderr=subprocess.STDOUT)
-         #self.ql_pid = ql_process.pid
-
-          # start the quicklook python thread
-          self.ql_pid = 1
-          pass
-          
+          ql_queue = Queue()
+          t1 = Thread(target = quicklookThread.main, args =(ql_queue, ))
+          t1.start()
+          self.ql_running = True
+          self.ql_thread = t1
+          self.ql_queue = ql_queue
+          self.ql_name = t1.name          
       except:
          self.logger.error("Failed to start the quicklook thread")
          traceback.print_exc()
 
          
    def stopQuickLook(self):
-      '''If a quickLook IDL process already exists - just kill it (for now)'''
-      # first send a QUIT command to the program
-
+      '''If a quicklook thread already exists - just kill it (for now)'''
       # Send EXIT command to quicklook thread
-      self.ql_pid = 0
-      
-      #for s in self.qlSources:
-      #   s.sendLine('QUIT')
-
-      #if self.ql_pid == 0:
-      #   p1=subprocess.Popen(['/bin/ps'],stdout=subprocess.PIPE)
-      #   # apql_wrapper is the name of the program ran when starting IDL (in apogeeql.cfg)
-      #   processName = (self.config.get('apogeeql','qlCommandName')).split()
-      #   if '-e' in processName:
-      #      # look at the name of the program called when IDL is started
-      #      pos = processName[processName.index('-e')+1]
-      #   else:
-      #      pos = 0
-      #   args = ['grep',processName[pos]]
-      #   p2=subprocess.Popen(args,stdin=p1.stdout,stdout=subprocess.PIPE)
-      #   output=p2.communicate()[0]
-      #   p2.kill()
-      #   p1.kill()
-      #   if len(output) > 0:
-      #      # process exists -> kill it
-      #      self.ql_pid = output.split()[0]
-      #
-      #os.kill(self.ql_pid,signal.SIGKILL)
-      #killedpid, stat = os.waitpid(self.ql_pid, os.WNOHANG)
-      #if killedpid == 0:
-      #   # failed in killing old IDL process
-      #   # print error message here
-      #   self.logger.warn("Unable to kill existing apogeeql_IDL process %s" % self.ql_pid)
-      #else:
-      #   self.ql_pid = 0
-
-   #def connectQuickReduce(self):
-   #   '''open a socket through twisted to send/receive information to/from apqr_wrapper IDL'''
-   #   # get the port from the configuratio file
-   #   #reactor.listenTCP(self.qrPort, QRFactory(self))
-   #
-      # Not sure I need this with a python thread
+      self.ql_queue.put('EXIT')
+      self.ql_running = False
       
    def startBundle(self):
-      '''Open a twisted reactor to communicate with IDL socket'''
-      #
+      '''Open a python thread to bundling code.'''
+
       # check if an apogeeql_IDL process is already running before starting a new one
-      if self.bundle_pid > 0:
+      if self.bndl_running:
          self.stopBundle()
 
-      # spawn the apgreduce IDL process and don't wait for its completion
+      # Start bundle python thread         
       try:
-         ## get the string corresponding to the command to start the IDL quicklook process
-         #qrCommand = self.config.get('apogeeql','qrCommandName')
-         #qrCommand = qrCommand.strip('"')
-         ## this adds the arguments to the IDL command line
-         #qrCommand += " -args %s %s" % (self.qrHost, self.qrPort)
-         ## Popen does NOWAIT by default
-         #qr_process = subprocess.Popen(qrCommand.split(), stderr=subprocess.STDOUT)
-         #self.qr_pid = qr_process.pid
-         # Start bundle python thread
-         self.bundle_pid = 1
+          bndl_queue = Queue()
+          t2 = Thread(target = bundleThread.main, args =(bndl_queue, ))
+          t2.start()
+          self.bndl_running = True
+          self.bndl_thread = t2
+          self.bndl_queue = bndl_queue
+          self.bndl_name = t2.name
       except:
          self.logger.error("Failed to start the Bundle thread")
          traceback.print_exc()
 
-
    def stopBundle(self):
-      '''If a quickReduce IDL process already exists - just kill it (for now)'''
-
-      # Send EXIT command to Bundle thread
-      self.bundle_pid = 0
-
-      
-      ## first send a QUIT command to the program
-      #for s in self.qrSources:
-      #   s.sendLine('QUIT')
-
-      #if self.qr_pid == 0:
-      #   p1=subprocess.Popen(['/bin/ps'],stdout=subprocess.PIPE)
-      #   # apqr_wrapper is the name of the program ran when starting IDL (in apogeeqr.cfg)
-      #   processName = (self.config.get('apogeeqr','qlCommandName')).split()
-      #   if '-e' in processName:
-      #      # look at the name of the program called when IDL is started
-      #      pos = processName[processName.index('-e')+1]
-      #   else:
-      #      pos = 0
-      #   args = ['grep',processName[pos]]
-      #   p2=subprocess.Popen(args,stdin=p1.stdout,stdout=subprocess.PIPE)
-      #   output=p2.communicate()[0]
-      #   p2.kill()
-      #   p1.kill()
-      #   if len(output) > 0:
-      #      # process exists -> kill it
-      #      self.qr_pid = output.split()[0]
-      #
-      #os.kill(self.qr_pid,signal.SIGKILL)
-      #killedpid, stat = os.waitpid(self.qr_pid, os.WNOHANG)
-      #if killedpid == 0:
-      #   # failed in killing old IDL process
-      #   # print error message here
-      #   self.logger.warn("Unable to kill existing apogeeql_IDL process %s" % self.qr_pid)
-      #else:
-      #   self.qr_pid = 0
+      '''If a bundle thread already exists - just kill it (for now)'''
+      # Send EXIT command to quicklook thread
+      self.bndl_queue.put('EXIT')
+      self.bndl_running = False
 
    def periodicStatus(self):
       '''Run some command periodically'''
@@ -658,13 +581,14 @@ class Apogeeql(actorcore.Actor.Actor):
       '''Run some command periodically'''
       self.watchDogStatus = False
       s.sendLine('PING')
+      self.ql_queue.put('PING')
       reactor.callLater(int(self.watchDogTimer), self.isApqlAlive)
 
    def isApqlAlive(self):
       '''Run some command periodically'''
       if not self.watchDogStatus:
          # APQL is not reponding - > restart it
-         self.logger.warn("APOGEEQL -> IDL_QL process not responding ... restarting ...")
+         self.logger.warn("APOGEEQL -> quicklook thread not responding ... restarting ...")
          self.startQuickLook()
 
    def connectionMade(self):
