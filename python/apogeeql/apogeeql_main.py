@@ -322,7 +322,7 @@ class Apogeeql(actorcore.Actor.Actor):
          #    s.sendLine('plugMapInfo=%s,%s,%s,%s' % (plate, pm.fscan_mjd, pm.fscan_id, fname))
          #for s in Apogeeql.actor.qrSources:
          #    s.sendLine('plugMapInfo=%s,%s,%s,%s' % (plate, pm.fscan_mjd, pm.fscan_id, fname))
-         Apogeeql.actor.ql_queue.put('plugMapInfo=%s,%s,%s,%s' % (plate, pm.fscan_mjd, pm.fscan_id, fname))
+         Apogeeql.actor.ql_in_queue.put('plugMapInfo=%s,%s,%s,%s' % (plate, pm.fscan_mjd, pm.fscan_id, fname))
          
          # print 'plugMapFilename=%s' % (fname)
          Apogeeql.prevPointing = pointing
@@ -384,9 +384,9 @@ class Apogeeql(actorcore.Actor.Actor):
             #   s.sendLine('UTR=DONE')
             #for s in Apogeeql.qrSources:
             #   s.sendLine('UTR=DONE,%s,%d,%s' % (Apogeeql.frameid, mjd5, Apogeeql.exp_pk))
-            Apogeeql.ql_queue.put('UTR=DONE')
-            Apogeeql.bndl_queue.put('UTR=DONE,%s,%d,%s' % (Apogeeql.frameid, mjd5, Apogeeql.exp_pk))            
-               
+            Apogeeql.ql_in_queue.put('UTR=DONE',block=True)
+            Apogeeql.bndl_in_queue.put('UTR=DONE,%s,%d,%s' % (Apogeeql.frameid, mjd5, Apogeeql.exp_pk),block=True)
+
       elif Apogeeql.expState.upper() != 'STOPPING':
          # when a stop was requested, a couple of images will still be coming in
          # only change the startExp in other cases
@@ -456,7 +456,7 @@ class Apogeeql(actorcore.Actor.Actor):
 
       #for s in Apogeeql.qlSources:
       #   s.sendLine('UTR=%s,%d,%d,%d' % (newfilename, Apogeeql.exp_pk, readnum, Apogeeql.numReadsCommanded))
-      Apogeeql.ql_queue.put('UTR=%s,%d,%d,%d' % (newfilename, Apogeeql.exp_pk, readnum, Apogeeql.numReadsCommanded))
+      Apogeeql.ql_in_queue.put('UTR=%s,%d,%d,%d' % (newfilename, Apogeeql.exp_pk, readnum, Apogeeql.numReadsCommanded),block=True)
 
          
    @staticmethod
@@ -484,9 +484,9 @@ class Apogeeql(actorcore.Actor.Actor):
 
       try:
          indir  = os.path.join(indir,dayOfSurvey)
-         infile= os.path.join(indir,filename)
+         infile = os.path.join(indir,filename)
          outdir = os.path.join(outdir,str(mjd))
-         outfile= os.path.join(outdir,filename)
+         outfile = os.path.join(outdir,filename)
          if not os.path.isdir(outdir):
             os.mkdir(outdir)
             # print 'Directory created at: ' + dest
@@ -511,7 +511,7 @@ class Apogeeql(actorcore.Actor.Actor):
       Apogeeql.namedDitherPos = keyVar[1]
       #for s in Apogeeql.actor.qlSources:
       #    s.sendLine('ditherPosition=%f,%s' % (Apogeeql.ditherPos, Apogeeql.namedDitherPos))
-      Apogeeql.actor.ql_queue.put('ditherPosition=%f,%s' % (Apogeeql.ditherPos, Apogeeql.namedDitherPos))
+      Apogeeql.actor.ql_in_queue.put('ditherPosition=%f,%s' % (Apogeeql.ditherPos, Apogeeql.namedDitherPos),block=True)
       
       
    def startQuickLook(self):
@@ -523,12 +523,14 @@ class Apogeeql(actorcore.Actor.Actor):
 
       # start the quicklook python thread
       try:
-          ql_queue = Queue()
-          t1 = Thread(target = quicklookThread.main, args =(ql_queue, ))
+          ql_in_queue = Queue()
+          ql_reply_queue = Queue()          
+          t1 = Thread(target = quicklookThread.main, args =(ql_in_queue, ql_reply_queue))
           t1.start()
           self.ql_running = True
           self.ql_thread = t1
-          self.ql_queue = ql_queue
+          self.ql_in_queue = ql_in_queue
+          self.ql_reply_queue = ql_reply_queue          
           self.ql_name = t1.name          
       except:
          self.logger.error("Failed to start the quicklook thread")
@@ -538,7 +540,8 @@ class Apogeeql(actorcore.Actor.Actor):
    def stopQuickLook(self):
       '''If a quicklook thread already exists - just kill it (for now)'''
       # Send EXIT command to quicklook thread
-      self.ql_queue.put('EXIT')
+      self.ql_in_queue.put('EXIT',block=True)
+      # check if the thread is still alive?
       self.ql_running = False
       
    def startBundle(self):
@@ -550,12 +553,14 @@ class Apogeeql(actorcore.Actor.Actor):
 
       # Start bundle python thread         
       try:
-          bndl_queue = Queue()
-          t2 = Thread(target = bundleThread.main, args =(bndl_queue, ))
+          bndl_in_queue = Queue()
+          bndl_reply_queue = Queue()          
+          t2 = Thread(target = bundleThread.main, args =(bndl_in_queue, bndl_reply_queue))
           t2.start()
           self.bndl_running = True
           self.bndl_thread = t2
-          self.bndl_queue = bndl_queue
+          self.bndl_in_queue = bndl_in_queue
+          self.bndl_reply_queue = bndl_reply_queue          
           self.bndl_name = t2.name
       except:
          self.logger.error("Failed to start the Bundle thread")
@@ -564,7 +569,8 @@ class Apogeeql(actorcore.Actor.Actor):
    def stopBundle(self):
       '''If a bundle thread already exists - just kill it (for now)'''
       # Send EXIT command to quicklook thread
-      self.bndl_queue.put('EXIT')
+      self.bndl_in_queue.put('EXIT',block=True)
+      # check if the thread is still alive?      
       self.bndl_running = False
 
    def periodicStatus(self):
@@ -580,9 +586,17 @@ class Apogeeql(actorcore.Actor.Actor):
    def sendAliveTest(self):
       '''Run some command periodically'''
       self.watchDogStatus = False
-      s.sendLine('PING')
-      self.ql_queue.put('PING')
-      reactor.callLater(int(self.watchDogTimer), self.isApqlAlive)
+      #s.sendLine('PING')
+      self.ql_in_queue.put('PING',block=True)
+      # check for response
+      reply = self.ql_reply_queue.get(block=True)
+      if reply=='PONG':
+          self.watchDogStatus=True
+          return True
+      else:
+          return False
+      
+      #reactor.callLater(int(self.watchDogTimer), self.isApqlAlive)
 
    def isApqlAlive(self):
       '''Run some command periodically'''
@@ -931,64 +945,7 @@ class Apogeeql(actorcore.Actor.Actor):
            self.logger.info('APOGEEQL -> had %d missing UTR' % (count))
        return
 
-
-
-#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-
-def kill_handler(signum, frame):
-   # send the quit message to the idl routines
-   print 'Signal handler called with signal', signum
-   logging.info("Stopping the IDL processes ... ")
-   # stopping apqr_wrapper
-
-   p1=subprocess.Popen(['/bin/ps'],stdout=subprocess.PIPE)
-   # apqr_wrapper is the name of the program ran when starting IDL (in apogeeqr.cfg)
-   processName = (self.config.get('apogeeql','qrCommandName')).split()
-   if '-e' in processName:
-       # look at the name of the program called when IDL is started
-       pos = processName[processName.index('-e')+1]
-   else:
-       pos = 0
-   args = ['grep',processName[pos]]
-   p2=subprocess.Popen(args,stdin=p1.stdout,stdout=subprocess.PIPE)
-   output=p2.communicate()[0]
-   p2.kill()
-   p1.kill()
-   if len(output) > 0:
-       # process exists -> kill it
-       qr_pid = output.split()[0]
-       os.kill(qr_pid,signal.SIGKILL)
-       killedpid, stat = os.waitpid(qr_pid, os.WNOHANG)
-       if killedpid == 0:
-          # failed in killing old IDL process
-          # print error message here
-          logging.warn("Unable to kill existing apogeeql_IDL process %s" % qr_pid)
-
-
-   p1=subprocess.Popen(['/bin/ps'],stdout=subprocess.PIPE)
-   # apqr_wrapper is the name of the program ran when starting IDL (in apogeeqr.cfg)
-   processName = (self.config.get('apogeeql','qlCommandName')).split()
-   if '-e' in processName:
-       # look at the name of the program called when IDL is started
-       pos = processName[processName.index('-e')+1]
-   else:
-       pos = 0
-   args = ['grep',processName[pos]]
-   p2=subprocess.Popen(args,stdin=p1.stdout,stdout=subprocess.PIPE)
-   output=p2.communicate()[0]
-   p2.kill()
-   p1.kill()
-   if len(output) > 0:
-       # process exists -> kill it
-       ql_pid = output.split()[0]
-       os.kill(ql_pid,signal.SIGKILL)
-       killedpid, stat = os.waitpid(ql_pid, os.WNOHANG)
-       if killedpid == 0:
-          # failed in killing old IDL process
-          # print error message here
-          logging.warn("Unable to kill existing apogeeql_IDL process %s" % ql_pid)
-
-   sys.exit()
+#
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
