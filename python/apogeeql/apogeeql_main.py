@@ -38,113 +38,113 @@ from astropy.time import Time
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-class QuickLookLineServer(LineReceiver):
-    def connectionMade(self):
-        # the IDL end-of-line string is linefeed only (no carriage-return)
-        # we need to change the delimiter to be able to detect a full line
-        # and have lineReceived method be called (otherwise it just sits there)
-        self.delimiter = '\n'
-        self.peer = self.transport.getPeer()
-        self.factory.qlActor.qlSources.append(self)
-        logging.info("Connection from %s %s" % (self.peer.host, self.peer.port))
-        print "Connection from ", self.peer.host, self.peer.port
-        # ping the quicklook
-        if self.factory.qlActor.ql_pid > 0:
-           for s in self.factory.qlActor.qlSources:
-              s.sendLine('PING')
-              s.sendLine('STARTING')
-
-    def lineReceived(self, line):
-        if line.upper()=='PONG':
-            # normal response from aliveness test
-            self.factory.qlActor.watchDogStatus = True
-        elif line.upper()=='QUIT':
-            # request to disconnect
-            self.transport.loseConnection()
-        elif line.upper()=='STARTED':
-            # we got the initial response from the apql_wrapper
-            # send the PointingInfo stuff
-            if self.factory.qlActor.prevPlate != -1:
-               for s in self.factory.qlActor.qlSources:
-                  s.sendLine('plugMapInfo=%s,%s,%s,%s' % (self.factory.qlActor.prevPlate, \
-                       self.factory.qlActor.prevScanMJD, self.factory.qlActor.prevScanId, \
-                       self.factory.qlActor.plugFname))
-        elif line == "callback":
-            logging.info("preparing callback")
-            reactor.callLater(5.0,self.sendcomment)
-        else:
-            # assume the messages are properly formatted to pass along
-            # print 'Received from apql_wrapper.pro: ',line
-            self.factory.qlActor.bcast.finish(line)
-
-    def connectionLost(self, reason):
-        logging.info("Disconnected from %s %s"  % (self.peer.port, reason.value))
-
-    def sendcomment(self):
-        logging.info("in the callback routine")
-
-
-#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-
-class QLFactory(ClientFactory):
-    protocol = QuickLookLineServer
-    def __init__(self, qlActor):
-        self.qlActor=qlActor
-
-#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-
-class QuickRedLineServer(LineReceiver):
-    def connectionMade(self):
-        # the IDL end-of-line string is linefeed only (no carriage-return)
-        # we need to change the delimiter to be able to detect a full line
-        # and have lineReceived method be called (otherwise it just sits there)
-        self.delimiter = '\n'
-        self.peer = self.transport.getPeer()
-        self.factory.qrActor.qrSources.append(self)
-        logging.info("apqr_wrapper Connection from %s %s" % (self.peer.host, self.peer.port))
-        print "apqr_wrapper -> Connection from ", self.peer.host, self.peer.port
-        # ping the quicklook
-        if self.factory.qrActor.ql_pid > 0:
-           for s in self.factory.qrActor.qrSources:
-              s.sendLine('PING')
-              s.sendLine('STARTING')
-
-    def lineReceived(self, line):
-        if line.upper()=='PONG':
-            # normal response from aliveness test
-            self.factory.qrActor.watchDogStatus = True
-        if line=='quit':
-            # request to disconnect
-            self.transport.loseConnection()
-        elif line.upper()=='STARTED':
-            # we got the initial response from the apql_wrapper
-            # send the PointingInfo stuff
-            if self.factory.qrActor.prevPlate != -1:
-               for s in self.factory.qrActor.qrSources:
-                  s.sendLine('plugMapInfo=%s,%s,%s,%s' % (self.factory.qrActor.prevPlate, \
-                       self.factory.qrActor.prevScanMJD, self.factory.qrActor.prevScanId, \
-                       self.factory.qrActor.plugFname))
-        elif line == "callback":
-            logging.info("preparing callback")
-            reactor.callLater(5.0,self.sendcomment)
-        else:
-            # assume the messages are properly formatted to pass along
-            # print 'Received from apqr_wrapper.pro: ',line
-            self.factory.qrActor.bcast.finish(line)
-
-    def connectionLost(self, reason):
-        logging.info("Disconnected from %s %s"  % (self.peer.port, reason.value))
-
-    def sendcomment(self):
-        logging.info("in the callback routine")
+#class QuickLookLineServer(LineReceiver):
+#    def connectionMade(self):
+#        # the IDL end-of-line string is linefeed only (no carriage-return)
+#        # we need to change the delimiter to be able to detect a full line
+#        # and have lineReceived method be called (otherwise it just sits there)
+#        self.delimiter = '\n'
+#        self.peer = self.transport.getPeer()
+#        self.factory.qlActor.qlSources.append(self)
+#        logging.info("Connection from %s %s" % (self.peer.host, self.peer.port))
+#        print "Connection from ", self.peer.host, self.peer.port
+#        # ping the quicklook
+#        if self.factory.qlActor.ql_pid > 0:
+#           for s in self.factory.qlActor.qlSources:
+#              s.sendLine('PING')
+#              s.sendLine('STARTING')
+#
+#    def lineReceived(self, line):
+#        if line.upper()=='PONG':
+#            # normal response from aliveness test
+#            self.factory.qlActor.watchDogStatus = True
+#        elif line.upper()=='QUIT':
+#            # request to disconnect
+#            self.transport.loseConnection()
+#        elif line.upper()=='STARTED':
+#            # we got the initial response from the apql_wrapper
+#            # send the PointingInfo stuff
+#            if self.factory.qlActor.prevPlate != -1:
+#               for s in self.factory.qlActor.qlSources:
+#                  s.sendLine('plugMapInfo=%s,%s,%s,%s' % (self.factory.qlActor.prevPlate, \
+#                       self.factory.qlActor.prevScanMJD, self.factory.qlActor.prevScanId, \
+#                       self.factory.qlActor.plugFname))
+#        elif line == "callback":
+#            logging.info("preparing callback")
+#            reactor.callLater(5.0,self.sendcomment)
+#        else:
+#            # assume the messages are properly formatted to pass along
+#            # print 'Received from apql_wrapper.pro: ',line
+#            self.factory.qlActor.bcast.finish(line)
+#
+#    def connectionLost(self, reason):
+#        logging.info("Disconnected from %s %s"  % (self.peer.port, reason.value))
+#
+#    def sendcomment(self):
+#        logging.info("in the callback routine")
 
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-class QRFactory(ClientFactory):
-    protocol = QuickRedLineServer
-    def __init__(self, qrActor):
-        self.qrActor=qrActor
+#class QLFactory(ClientFactory):
+#    protocol = QuickLookLineServer
+#    def __init__(self, qlActor):
+#        self.qlActor=qlActor
+
+#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+#class QuickRedLineServer(LineReceiver):
+#    def connectionMade(self):
+#        # the IDL end-of-line string is linefeed only (no carriage-return)
+#        # we need to change the delimiter to be able to detect a full line
+#        # and have lineReceived method be called (otherwise it just sits there)
+#        self.delimiter = '\n'
+#        self.peer = self.transport.getPeer()
+#        self.factory.qrActor.qrSources.append(self)
+#        logging.info("apqr_wrapper Connection from %s %s" % (self.peer.host, self.peer.port))
+#        print "apqr_wrapper -> Connection from ", self.peer.host, self.peer.port
+#        # ping the quicklook
+#        if self.factory.qrActor.ql_pid > 0:
+#           for s in self.factory.qrActor.qrSources:
+#              s.sendLine('PING')
+#              s.sendLine('STARTING')
+#
+#    def lineReceived(self, line):
+#        if line.upper()=='PONG':
+#            # normal response from aliveness test
+#            self.factory.qrActor.watchDogStatus = True
+#        if line=='quit':
+#            # request to disconnect
+#            self.transport.loseConnection()
+#        elif line.upper()=='STARTED':
+#            # we got the initial response from the apql_wrapper
+#            # send the PointingInfo stuff
+#            if self.factory.qrActor.prevPlate != -1:
+#               for s in self.factory.qrActor.qrSources:
+#                  s.sendLine('plugMapInfo=%s,%s,%s,%s' % (self.factory.qrActor.prevPlate, \
+#                       self.factory.qrActor.prevScanMJD, self.factory.qrActor.prevScanId, \
+#                       self.factory.qrActor.plugFname))
+#        elif line == "callback":
+#            logging.info("preparing callback")
+#            reactor.callLater(5.0,self.sendcomment)
+#        else:
+#            # assume the messages are properly formatted to pass along
+#            # print 'Received from apqr_wrapper.pro: ',line
+#            self.factory.qrActor.bcast.finish(line)
+#
+#    def connectionLost(self, reason):
+#        logging.info("Disconnected from %s %s"  % (self.peer.port, reason.value))
+#
+#    def sendcomment(self):
+#        logging.info("in the callback routine")
+
+
+#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+#class QRFactory(ClientFactory):
+#    protocol = QuickRedLineServer
+#    def __init__(self, qrActor):
+#        self.qrActor=qrActor
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
@@ -505,8 +505,12 @@ class Apogeeql(actorcore.Actor.Actor):
    def connectQuickLook(self):
       '''open a socket through twisted to send/receive information to/from apogee_IDL'''
       # get the port from the configuratio file
-      reactor.listenTCP(self.qlPort, QLFactory(self))
+      #reactor.listenTCP(self.qlPort, QLFactory(self))
 
+      # Do I even need this with the python thread???
+      pass
+  
+      
    def startQuickLook(self):
       '''Open a twisted reactor to communicate with IDL socket'''
       #
@@ -516,111 +520,129 @@ class Apogeeql(actorcore.Actor.Actor):
 
       # spawn the apogeeql IDL process and don't wait for its completion
       try:
-         # get the string corresponding to the command to start the IDL quicklook process
-         qlCommand = self.config.get('apogeeql','qlCommandName')
-         qlCommand = qlCommand.strip('"')
-         # this adds the arguments to the IDL command line
-         qlCommand += " -args %s %s" % (self.qlHost, self.qlPort)
-         # Popen does NOWAIT by default
-         ql_process = subprocess.Popen(qlCommand.split(), stderr=subprocess.STDOUT)
-         self.ql_pid = ql_process.pid
+         ## get the string corresponding to the command to start the IDL quicklook process
+         #qlCommand = self.config.get('apogeeql','qlCommandName')
+         #qlCommand = qlCommand.strip('"')
+         ## this adds the arguments to the IDL command line
+         #qlCommand += " -args %s %s" % (self.qlHost, self.qlPort)
+         ## Popen does NOWAIT by default
+         #ql_process = subprocess.Popen(qlCommand.split(), stderr=subprocess.STDOUT)
+         #self.ql_pid = ql_process.pid
+
+          # start the quicklook python thread
+          self.ql_pid = 1
+          pass
+          
       except:
-         self.logger.error("Failed to start the apogeeql_IDL process")
+         self.logger.error("Failed to start the quicklook thread")
          traceback.print_exc()
 
-
+         
    def stopQuickLook(self):
       '''If a quickLook IDL process already exists - just kill it (for now)'''
       # first send a QUIT command to the program
-      for s in self.qlSources:
-         s.sendLine('QUIT')
 
-      if self.ql_pid == 0:
-         p1=subprocess.Popen(['/bin/ps'],stdout=subprocess.PIPE)
-         # apql_wrapper is the name of the program ran when starting IDL (in apogeeql.cfg)
-         processName = (self.config.get('apogeeql','qlCommandName')).split()
-         if '-e' in processName:
-            # look at the name of the program called when IDL is started
-            pos = processName[processName.index('-e')+1]
-         else:
-            pos = 0
-         args = ['grep',processName[pos]]
-         p2=subprocess.Popen(args,stdin=p1.stdout,stdout=subprocess.PIPE)
-         output=p2.communicate()[0]
-         p2.kill()
-         p1.kill()
-         if len(output) > 0:
-            # process exists -> kill it
-            self.ql_pid = output.split()[0]
+      # Send EXIT command to quicklook thread
+      self.ql_pid = 0
+      
+      #for s in self.qlSources:
+      #   s.sendLine('QUIT')
 
-      os.kill(self.ql_pid,signal.SIGKILL)
-      killedpid, stat = os.waitpid(self.ql_pid, os.WNOHANG)
-      if killedpid == 0:
-         # failed in killing old IDL process
-         # print error message here
-         self.logger.warn("Unable to kill existing apogeeql_IDL process %s" % self.ql_pid)
-      else:
-         self.ql_pid = 0
+      #if self.ql_pid == 0:
+      #   p1=subprocess.Popen(['/bin/ps'],stdout=subprocess.PIPE)
+      #   # apql_wrapper is the name of the program ran when starting IDL (in apogeeql.cfg)
+      #   processName = (self.config.get('apogeeql','qlCommandName')).split()
+      #   if '-e' in processName:
+      #      # look at the name of the program called when IDL is started
+      #      pos = processName[processName.index('-e')+1]
+      #   else:
+      #      pos = 0
+      #   args = ['grep',processName[pos]]
+      #   p2=subprocess.Popen(args,stdin=p1.stdout,stdout=subprocess.PIPE)
+      #   output=p2.communicate()[0]
+      #   p2.kill()
+      #   p1.kill()
+      #   if len(output) > 0:
+      #      # process exists -> kill it
+      #      self.ql_pid = output.split()[0]
+      #
+      #os.kill(self.ql_pid,signal.SIGKILL)
+      #killedpid, stat = os.waitpid(self.ql_pid, os.WNOHANG)
+      #if killedpid == 0:
+      #   # failed in killing old IDL process
+      #   # print error message here
+      #   self.logger.warn("Unable to kill existing apogeeql_IDL process %s" % self.ql_pid)
+      #else:
+      #   self.ql_pid = 0
 
-   def connectQuickReduce(self):
-      '''open a socket through twisted to send/receive information to/from apqr_wrapper IDL'''
-      # get the port from the configuratio file
-      reactor.listenTCP(self.qrPort, QRFactory(self))
-
-   def startQuickReduce(self):
+   #def connectQuickReduce(self):
+   #   '''open a socket through twisted to send/receive information to/from apqr_wrapper IDL'''
+   #   # get the port from the configuratio file
+   #   #reactor.listenTCP(self.qrPort, QRFactory(self))
+   #
+      # Not sure I need this with a python thread
+      
+   def startBundle(self):
       '''Open a twisted reactor to communicate with IDL socket'''
       #
       # check if an apogeeql_IDL process is already running before starting a new one
-      if self.qr_pid > 0:
-         self.stopQuickReduce()
+      if self.bundle_pid > 0:
+         self.stopBundle()
 
       # spawn the apgreduce IDL process and don't wait for its completion
       try:
-         # get the string corresponding to the command to start the IDL quicklook process
-         qrCommand = self.config.get('apogeeql','qrCommandName')
-         qrCommand = qrCommand.strip('"')
-         # this adds the arguments to the IDL command line
-         qrCommand += " -args %s %s" % (self.qrHost, self.qrPort)
-         # Popen does NOWAIT by default
-         qr_process = subprocess.Popen(qrCommand.split(), stderr=subprocess.STDOUT)
-         self.qr_pid = qr_process.pid
+         ## get the string corresponding to the command to start the IDL quicklook process
+         #qrCommand = self.config.get('apogeeql','qrCommandName')
+         #qrCommand = qrCommand.strip('"')
+         ## this adds the arguments to the IDL command line
+         #qrCommand += " -args %s %s" % (self.qrHost, self.qrPort)
+         ## Popen does NOWAIT by default
+         #qr_process = subprocess.Popen(qrCommand.split(), stderr=subprocess.STDOUT)
+         #self.qr_pid = qr_process.pid
+         # Start bundle python thread
+         self.bundle_pid = 1
       except:
-         self.logger.error("Failed to start the apogeeqr_IDL process")
+         self.logger.error("Failed to start the Bundle thread")
          traceback.print_exc()
 
 
-   def stopQuickReduce(self):
+   def stopBundle(self):
       '''If a quickReduce IDL process already exists - just kill it (for now)'''
-      # first send a QUIT command to the program
-      for s in self.qrSources:
-         s.sendLine('QUIT')
 
-      if self.qr_pid == 0:
-         p1=subprocess.Popen(['/bin/ps'],stdout=subprocess.PIPE)
-         # apqr_wrapper is the name of the program ran when starting IDL (in apogeeqr.cfg)
-         processName = (self.config.get('apogeeqr','qlCommandName')).split()
-         if '-e' in processName:
-            # look at the name of the program called when IDL is started
-            pos = processName[processName.index('-e')+1]
-         else:
-            pos = 0
-         args = ['grep',processName[pos]]
-         p2=subprocess.Popen(args,stdin=p1.stdout,stdout=subprocess.PIPE)
-         output=p2.communicate()[0]
-         p2.kill()
-         p1.kill()
-         if len(output) > 0:
-            # process exists -> kill it
-            self.qr_pid = output.split()[0]
+      # Send EXIT command to Bundle thread
+      self.bundle_pid = 0
 
-      os.kill(self.qr_pid,signal.SIGKILL)
-      killedpid, stat = os.waitpid(self.qr_pid, os.WNOHANG)
-      if killedpid == 0:
-         # failed in killing old IDL process
-         # print error message here
-         self.logger.warn("Unable to kill existing apogeeql_IDL process %s" % self.qr_pid)
-      else:
-         self.qr_pid = 0
+      
+      ## first send a QUIT command to the program
+      #for s in self.qrSources:
+      #   s.sendLine('QUIT')
+
+      #if self.qr_pid == 0:
+      #   p1=subprocess.Popen(['/bin/ps'],stdout=subprocess.PIPE)
+      #   # apqr_wrapper is the name of the program ran when starting IDL (in apogeeqr.cfg)
+      #   processName = (self.config.get('apogeeqr','qlCommandName')).split()
+      #   if '-e' in processName:
+      #      # look at the name of the program called when IDL is started
+      #      pos = processName[processName.index('-e')+1]
+      #   else:
+      #      pos = 0
+      #   args = ['grep',processName[pos]]
+      #   p2=subprocess.Popen(args,stdin=p1.stdout,stdout=subprocess.PIPE)
+      #   output=p2.communicate()[0]
+      #   p2.kill()
+      #   p1.kill()
+      #   if len(output) > 0:
+      #      # process exists -> kill it
+      #      self.qr_pid = output.split()[0]
+      #
+      #os.kill(self.qr_pid,signal.SIGKILL)
+      #killedpid, stat = os.waitpid(self.qr_pid, os.WNOHANG)
+      #if killedpid == 0:
+      #   # failed in killing old IDL process
+      #   # print error message here
+      #   self.logger.warn("Unable to kill existing apogeeql_IDL process %s" % self.qr_pid)
+      #else:
+      #   self.qr_pid = 0
 
    def periodicStatus(self):
       '''Run some command periodically'''
@@ -1050,10 +1072,10 @@ def main():
    import os, signal
 
    apogeeql = Apogeeql('apogeeql', 'apogeeql')
-   apogeeql.connectQuickLook()
+   #apogeeql.connectQuickLook()
    apogeeql.startQuickLook()
-   apogeeql.connectQuickReduce()
-   apogeeql.startQuickReduce()
+   #apogeeql.connectQuickReduce()
+   apogeeql.startBundle()
    reactor.callLater(3, apogeeql.periodicStatus)
    reactor.callLater(30, apogeeql.periodicDisksStatus)
    signal.signal(signal.SIGTERM, kill_handler)
