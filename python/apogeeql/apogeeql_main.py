@@ -384,8 +384,8 @@ class Apogeeql(actorcore.Actor.Actor):
             #   s.sendLine('UTR=DONE')
             #for s in Apogeeql.qrSources:
             #   s.sendLine('UTR=DONE,%s,%d,%s' % (Apogeeql.frameid, mjd5, Apogeeql.exp_pk))
-            Apogeeql.ql_in_queue.put('UTR=DONE',block=True)
-            Apogeeql.bndl_in_queue.put('UTR=DONE,%s,%d,%s' % (Apogeeql.frameid, mjd5, Apogeeql.exp_pk),block=True)
+            Apogeeql.ql_in_queue.put('UTRDONE',Apogeeql.frameid, mjd5, Apogeeql.exp_pk),block=True)
+            Apogeeql.bndl_in_queue.put(('BUNDLE',Apogeeql.frameid, mjd5, Apogeeql.exp_pk),block=True)
 
       elif Apogeeql.expState.upper() != 'STOPPING':
          # when a stop was requested, a couple of images will still be coming in
@@ -456,7 +456,7 @@ class Apogeeql(actorcore.Actor.Actor):
 
       #for s in Apogeeql.qlSources:
       #   s.sendLine('UTR=%s,%d,%d,%d' % (newfilename, Apogeeql.exp_pk, readnum, Apogeeql.numReadsCommanded))
-      Apogeeql.ql_in_queue.put('UTR=%s,%d,%d,%d' % (newfilename, Apogeeql.exp_pk, readnum, Apogeeql.numReadsCommanded),block=True)
+      Apogeeql.ql_in_queue.put(('UTR',newfilename, Apogeeql.exp_pk, readnum, Apogeeql.numReadsCommanded),block=True)
 
          
    @staticmethod
