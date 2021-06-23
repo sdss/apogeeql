@@ -323,7 +323,7 @@ class Apogeeql(actorcore.Actor.Actor):
          #for s in Apogeeql.actor.qrSources:
          #    s.sendLine('plugMapInfo=%s,%s,%s,%s' % (plate, pm.fscan_mjd, pm.fscan_id, fname))
          Apogeeql.actor.ql_in_queue.put('plugMapInfo=%s,%s,%s,%s' % (plate, pm.fscan_mjd, pm.fscan_id, fname))
-         
+
          # print 'plugMapFilename=%s' % (fname)
          Apogeeql.prevPointing = pointing
          Apogeeql.prevPlate = plate
@@ -384,7 +384,7 @@ class Apogeeql(actorcore.Actor.Actor):
             #   s.sendLine('UTR=DONE')
             #for s in Apogeeql.qrSources:
             #   s.sendLine('UTR=DONE,%s,%d,%s' % (Apogeeql.frameid, mjd5, Apogeeql.exp_pk))
-            Apogeeql.ql_in_queue.put('UTRDONE',Apogeeql.frameid, mjd5, Apogeeql.exp_pk),block=True)
+            Apogeeql.ql_in_queue.put(('UTRDONE',Apogeeql.frameid, mjd5, Apogeeql.exp_pk),block=True)
             Apogeeql.bndl_in_queue.put(('BUNDLE',Apogeeql.frameid, mjd5, Apogeeql.exp_pk),block=True)
 
       elif Apogeeql.expState.upper() != 'STOPPING':
@@ -458,7 +458,7 @@ class Apogeeql(actorcore.Actor.Actor):
       #   s.sendLine('UTR=%s,%d,%d,%d' % (newfilename, Apogeeql.exp_pk, readnum, Apogeeql.numReadsCommanded))
       Apogeeql.ql_in_queue.put(('UTR',newfilename, Apogeeql.exp_pk, readnum, Apogeeql.numReadsCommanded),block=True)
 
-         
+
    @staticmethod
    def exposureWroteSummaryCB(keyVar):
 
@@ -512,8 +512,8 @@ class Apogeeql(actorcore.Actor.Actor):
       #for s in Apogeeql.actor.qlSources:
       #    s.sendLine('ditherPosition=%f,%s' % (Apogeeql.ditherPos, Apogeeql.namedDitherPos))
       Apogeeql.actor.ql_in_queue.put('ditherPosition=%f,%s' % (Apogeeql.ditherPos, Apogeeql.namedDitherPos),block=True)
-      
-      
+
+
    def startQuickLook(self):
       '''Open a twisted reactor to communicate with IDL socket'''
       #
@@ -524,26 +524,26 @@ class Apogeeql(actorcore.Actor.Actor):
       # start the quicklook python thread
       try:
           ql_in_queue = Queue()
-          ql_reply_queue = Queue()          
+          ql_reply_queue = Queue()
           t1 = Thread(target = quicklookThread.main, args =(ql_in_queue, ql_reply_queue))
           t1.start()
           self.ql_running = True
           self.ql_thread = t1
           self.ql_in_queue = ql_in_queue
-          self.ql_reply_queue = ql_reply_queue          
-          self.ql_name = t1.name          
+          self.ql_reply_queue = ql_reply_queue
+          self.ql_name = t1.name
       except:
          self.logger.error("Failed to start the quicklook thread")
          traceback.print_exc()
 
-         
+
    def stopQuickLook(self):
       '''If a quicklook thread already exists - just kill it (for now)'''
       # Send EXIT command to quicklook thread
       self.ql_in_queue.put('EXIT',block=True)
       # check if the thread is still alive?
       self.ql_running = False
-      
+
    def startBundle(self):
       '''Open a python thread to bundling code.'''
 
@@ -551,16 +551,16 @@ class Apogeeql(actorcore.Actor.Actor):
       if self.bndl_running:
          self.stopBundle()
 
-      # Start bundle python thread         
+      # Start bundle python thread
       try:
           bndl_in_queue = Queue()
-          bndl_reply_queue = Queue()          
+          bndl_reply_queue = Queue()
           t2 = Thread(target = bundleThread.main, args =(bndl_in_queue, bndl_reply_queue))
           t2.start()
           self.bndl_running = True
           self.bndl_thread = t2
           self.bndl_in_queue = bndl_in_queue
-          self.bndl_reply_queue = bndl_reply_queue          
+          self.bndl_reply_queue = bndl_reply_queue
           self.bndl_name = t2.name
       except:
          self.logger.error("Failed to start the Bundle thread")
@@ -570,7 +570,7 @@ class Apogeeql(actorcore.Actor.Actor):
       '''If a bundle thread already exists - just kill it (for now)'''
       # Send EXIT command to quicklook thread
       self.bndl_in_queue.put('EXIT',block=True)
-      # check if the thread is still alive?      
+      # check if the thread is still alive?
       self.bndl_running = False
 
    def periodicStatus(self):
@@ -595,7 +595,7 @@ class Apogeeql(actorcore.Actor.Actor):
           return True
       else:
           return False
-      
+
       #reactor.callLater(int(self.watchDogTimer), self.isApqlAlive)
 
    def isApqlAlive(self):
@@ -844,7 +844,7 @@ class Apogeeql(actorcore.Actor.Actor):
            hotmask = 512
            extmask = 1024
            starmask = skymask | hotmask
-           
+
            # loop through the list and update the PLUGMAPOBJ
            tmass_style = 'Unknown'
            for fid, j_mag, h_mag, k_mag, t1, t2 in ph:
