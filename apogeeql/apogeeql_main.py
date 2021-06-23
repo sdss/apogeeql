@@ -38,7 +38,7 @@ from astropy.time import Time
 from apogee_mountain import quicklookThread, bundleThread
 
 # python threading code
-from queue import Queue
+from Queue import Queue
 from threading import Thread
 
 
