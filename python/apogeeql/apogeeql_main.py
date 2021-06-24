@@ -7,7 +7,6 @@ from twisted.internet.protocol import Protocol, Factory
 
 from sdss.internal.database.connections.APODatabaseAdminLocalConnection import db # access to engine, metadata, Session
 from sdss.internal.database.apo.platedb.ModelClasses import *
-from sdss.apogee.addExposure import addExposure
 
 import sqlalchemy
 
@@ -28,7 +27,7 @@ import apogeeql
 # Import sdss3logging before logging if you want to use it
 #
 import logging
-import os, signal, subprocess, tempfile, shutil, glob
+import os, sys, signal, subprocess, tempfile, shutil, glob
 import time
 import types
 from sdss.utilities import yanny
@@ -40,6 +39,34 @@ from apogee_mountain import quicklookThread, bundleThread
 # python threading code
 from Queue import Queue
 from threading import Thread
+
+import datetime
+
+from peewee import PostgresqlDatabase, Model
+from peewee import AutoField, BigIntegerField, TextField, DateTimeField, FloatField, IntegerField
+
+database = PostgresqlDatabase('sdss5db', user='sdss', host='10.25.1.130')
+database.connect()
+
+
+class Exposure(Model):
+
+    pk = AutoField()
+    configuration_pk = BigIntegerField()
+    survey_pk = IntegerField()
+    exposure_no = BigIntegerField()
+    comment = TextField(null=True)
+    start_time = DateTimeField(default=datetime.datetime.now)
+    exposure_time = FloatField()
+    # exposure_status = ForeignKeyField(column_name='exposure_status_pk',
+    #                                   field='pk',
+    #                                   model=ExposureStatus)
+    exposure_flavor_pk = IntegerField()
+
+    class Meta:
+        database = database
+        schema = 'opsdb'
+        table_name = 'exposure'
 
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -255,6 +282,8 @@ class Apogeeql(actorcore.Actor.Actor):
       #
       self.mysession = db.Session()
 
+      self.ql_running = False
+      self.bndl_running = False
 
    @staticmethod
    def TCCInstCB(keyVar):
@@ -322,7 +351,7 @@ class Apogeeql(actorcore.Actor.Actor):
          #    s.sendLine('plugMapInfo=%s,%s,%s,%s' % (plate, pm.fscan_mjd, pm.fscan_id, fname))
          #for s in Apogeeql.actor.qrSources:
          #    s.sendLine('plugMapInfo=%s,%s,%s,%s' % (plate, pm.fscan_mjd, pm.fscan_id, fname))
-         Apogeeql.actor.ql_in_queue.put('plugMapInfo=%s,%s,%s,%s' % (plate, pm.fscan_mjd, pm.fscan_id, fname))
+         Apogeeql.actor.ql_in_queue.put(('plugMapInfo',plate, pm.fscan_mjd, pm.fscan_id, fname))
 
          # print 'plugMapFilename=%s' % (fname)
          Apogeeql.prevPointing = pointing
@@ -384,8 +413,8 @@ class Apogeeql(actorcore.Actor.Actor):
             #   s.sendLine('UTR=DONE')
             #for s in Apogeeql.qrSources:
             #   s.sendLine('UTR=DONE,%s,%d,%s' % (Apogeeql.frameid, mjd5, Apogeeql.exp_pk))
-            Apogeeql.ql_in_queue.put(('UTRDONE',Apogeeql.frameid, mjd5, Apogeeql.exp_pk),block=True)
-            Apogeeql.bndl_in_queue.put(('BUNDLE',Apogeeql.frameid, mjd5, Apogeeql.exp_pk),block=True)
+            Apogeeql.actor.ql_in_queue.put(('UTRDONE',Apogeeql.frameid, mjd5, Apogeeql.exp_pk),block=True)
+            Apogeeql.actor.bndl_in_queue.put(('BUNDLE',Apogeeql.frameid, mjd5, Apogeeql.exp_pk),block=True)
 
       elif Apogeeql.expState.upper() != 'STOPPING':
          # when a stop was requested, a couple of images will still be coming in
@@ -447,8 +476,11 @@ class Apogeeql(actorcore.Actor.Actor):
               surveyLabel = 'APOGEE-2'
 
           try:
-             Apogeeql.exp_pk = addExposure(Apogeeql.actor.mysession, Apogeeql.prevScanId, Apogeeql.prevScanMJD,
-                                           Apogeeql.prevPlate, mjd, expnum, surveyLabel, starttime, exptime, Apogeeql.expType, 'apogeeQL')
+             with database.atomic():
+               new_exposure = Exposure(configuration_pk=2, exposure_no=expnum,
+                                       exposure_time=exptime, exposure_flavor_pk=13)
+               new_exposure.save()
+               Apogeeql.exp_pk = new_exposure.pk
           except RuntimeError as e:
              Apogeeql.actor.logger.error('Failed in call addExposure for exposureNo %d' %expnum)
              Apogeeql.actor.logger.error('Exception: %s'%e)
@@ -456,7 +488,7 @@ class Apogeeql(actorcore.Actor.Actor):
 
       #for s in Apogeeql.qlSources:
       #   s.sendLine('UTR=%s,%d,%d,%d' % (newfilename, Apogeeql.exp_pk, readnum, Apogeeql.numReadsCommanded))
-      Apogeeql.ql_in_queue.put(('UTR',newfilename, Apogeeql.exp_pk, readnum, Apogeeql.numReadsCommanded),block=True)
+      Apogeeql.actor.ql_in_queue.put(('UTR',newfilename, Apogeeql.exp_pk, readnum, Apogeeql.numReadsCommanded),block=True)
 
 
    @staticmethod
@@ -494,7 +526,8 @@ class Apogeeql(actorcore.Actor.Actor):
          shutil.copy2(infile,outfile)
          # print "shutil.copy2 took %f seconds" % (time.time()-t0)
       except:
-         raise RuntimeError( "Failed to copy the summary file (%s)" % (filename))
+         #raise RuntimeError( "Failed to copy the summary file (%s)" % (filename))
+         raise RuntimeError( "Failed to copy the summary file (%s -> %s)" % (infile,outfile))
 
    @staticmethod
    def ditherPositionCB(keyVar):
@@ -511,7 +544,7 @@ class Apogeeql(actorcore.Actor.Actor):
       Apogeeql.namedDitherPos = keyVar[1]
       #for s in Apogeeql.actor.qlSources:
       #    s.sendLine('ditherPosition=%f,%s' % (Apogeeql.ditherPos, Apogeeql.namedDitherPos))
-      Apogeeql.actor.ql_in_queue.put('ditherPosition=%f,%s' % (Apogeeql.ditherPos, Apogeeql.namedDitherPos),block=True)
+      Apogeeql.actor.ql_in_queue.put(('ditherPosition',Apogeeql.ditherPos, Apogeeql.namedDitherPos),block=True)
 
 
    def startQuickLook(self):
@@ -520,6 +553,8 @@ class Apogeeql(actorcore.Actor.Actor):
       # check if an quicklook thread is already running before starting a new one
       if self.ql_running:
          self.stopQuickLook()
+
+      print('Starting the Quicklook Thread')
 
       # start the quicklook python thread
       try:
@@ -551,6 +586,8 @@ class Apogeeql(actorcore.Actor.Actor):
       if self.bndl_running:
          self.stopBundle()
 
+      print('Starting the Bundling Thread')
+
       # Start bundle python thread
       try:
           bndl_in_queue = Queue()
@@ -572,6 +609,16 @@ class Apogeeql(actorcore.Actor.Actor):
       self.bndl_in_queue.put('EXIT',block=True)
       # check if the thread is still alive?
       self.bndl_running = False
+
+   def kill_handler(self,signum,frame):
+      ''' Kill handler.  stop quicklook and bundle threads.'''
+      print('Kill signal encountered.  Stopping quicklook and bundle threads.')
+      print('Signal handler called with signal', signum)
+      self.stopQuickLook()
+      self.stopBundle()
+      print('Exiting apogeeql')
+      #sys.exit(0)
+      reactor.stop()
 
    def periodicStatus(self):
       '''Run some command periodically'''
@@ -799,10 +846,15 @@ class Apogeeql(actorcore.Actor.Actor):
 
 
        # get the needed information from the plate_hole
-       ph = self.mysession.query(Fiber).join(PlateHole).\
-           filter(Fiber.pl_plugmap_m_pk==plugmap.pk).order_by(Fiber.fiber_id).\
-           values('fiber_id','tmass_j','tmass_h','tmass_k','apogee_target1','apogee_target2')
+       #ph = self.mysession.query(Fiber).join(PlateHole).\
+       #    filter(Fiber.pl_plugmap_m_pk==plugmap.pk).order_by(Fiber.fiber_id).\
+       #    values('fiber_id','tmass_j','tmass_h','tmass_k','apogee_target1','apogee_target2')
 
+       ph = self.mysession.query(Fiber).join(PlateHole).\
+            filter(Fiber.pl_plugmap_m_pk==plugmap.pk).order_by(Fiber.fiber_id).\
+            with_entities(Fiber.fiber_id, PlateHole.tmass_j, PlateHole.tmass_h,
+                          PlateHole.tmass_k, PlateHole.apogee_target1,
+                          PlateHole.apogee_target2)
 
        # SDSS-V plates
        if (plate >= 15000):
@@ -959,7 +1011,8 @@ def main():
    apogeeql.startBundle()
    reactor.callLater(3, apogeeql.periodicStatus)
    reactor.callLater(30, apogeeql.periodicDisksStatus)
-   signal.signal(signal.SIGTERM, kill_handler)
+   signal.signal(signal.SIGTERM, apogeeql.kill_handler)
+   signal.signal(signal.SIGINT, apogeeql.kill_handler)
    apogeeql.run()
 
 #-------------------------------------------------------------
