@@ -413,7 +413,7 @@ class Apogeeql(actorcore.Actor.Actor):
             #   s.sendLine('UTR=DONE')
             #for s in Apogeeql.qrSources:
             #   s.sendLine('UTR=DONE,%s,%d,%s' % (Apogeeql.frameid, mjd5, Apogeeql.exp_pk))
-            Apogeeql.actor.ql_in_queue.put(('UTRDONE',Apogeeql.frameid, mjd5, Apogeeql.exp_pk),block=True)
+            Apogeeql.actor.ql_in_queue.put(('UTRDONE',Apogeeql.actor,Apogeeql.frameid, mjd5, Apogeeql.exp_pk),block=True)
             Apogeeql.actor.bndl_in_queue.put(('BUNDLE',Apogeeql.frameid, mjd5, Apogeeql.exp_pk),block=True)
 
       elif Apogeeql.expState.upper() != 'STOPPING':
@@ -488,7 +488,8 @@ class Apogeeql(actorcore.Actor.Actor):
 
       #for s in Apogeeql.qlSources:
       #   s.sendLine('UTR=%s,%d,%d,%d' % (newfilename, Apogeeql.exp_pk, readnum, Apogeeql.numReadsCommanded))
-      Apogeeql.actor.ql_in_queue.put(('UTR',newfilename, Apogeeql.exp_pk, readnum, Apogeeql.numReadsCommanded),block=True)
+      #Apogeeql.actor.ql_in_queue.put(('UTR',newfilename, Apogeeql.exp_pk, readnum, Apogeeql.numReadsCommanded),block=True)
+      Apogeeql.actor.ql_in_queue.put(('UTR', Apogeeql.actor, newfilename, Apogeeql.exp_pk, readnum, Apogeeql.numReadsCommanded),block=True)
 
 
    @staticmethod
