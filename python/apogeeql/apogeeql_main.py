@@ -452,9 +452,10 @@ class Apogeeql(actorcore.Actor.Actor):
       newfilename, starttime, exptime = Apogeeql.appendFitsKeywords(Apogeeql.actor,filename)
 
       #Don't create a new exposure if the exposure is not an APOGEE or MANGA object
-      if Apogeeql.prevPlate == -1:
-         print "exposureWroteFileCB  -> Not an APOGEE/MANGA Object"
-         return
+      #if Apogeeql.prevPlate == -1:
+      #   print "exposureWroteFileCB  -> Not an APOGEE/MANGA Object"
+      #   return
+      # COMMENTING THIS OUT. DLN 10/26/21
 
       # get the mjd from the filename
       res=filename.split('-')
