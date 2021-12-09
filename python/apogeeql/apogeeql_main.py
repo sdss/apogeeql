@@ -52,11 +52,11 @@ database.connect()
 class Exposure(Model):
 
     pk = AutoField()
-    configuration_pk = BigIntegerField()
+    configuration_id = BigIntegerField()
     survey_pk = IntegerField()
     exposure_no = BigIntegerField()
     comment = TextField(null=True)
-    start_time = DateTimeField(default=datetime.datetime.now)
+    start_time = DateTimeField(default=datetime.datetime.now())
     exposure_time = FloatField()
     # exposure_status = ForeignKeyField(column_name='exposure_status_pk',
     #                                   field='pk',
@@ -189,13 +189,13 @@ class Apogeeql(actorcore.Actor.Actor):
    qr_pid = 0
    qrSources=[]
    prevCartridge=-1
-   prevPlate=-1
+   prevPlate = None
    prevScanId = -1
    prevScanMJD = -1
    prevPointing='A'
-   config_id = -1
-   design_id = -1
-   field_id = -1
+   config_id = None
+   design_id = None
+   field_id = None
    summary_file = ''
    pluggingPk = 0
    apogeeSurveyPk=1   # use the known APOGEE survey value in the db as default
@@ -268,14 +268,14 @@ class Apogeeql(actorcore.Actor.Actor):
       #
       self.models = {}
       # for actor in ["mcp", "guider", "platedb", "tcc", "apo", "apogeetest"]:
-      for actor in ["mcp", "guider", "platedb", "tcc", "apogee", "apogeecal", "sop"]:
+      for actor in ["mcp", "guider", "platedb", "tcc", "apogee", "apogeecal", "sop", "jaeger"]:
          self.models[actor] = opscore.actor.model.Model(actor)
 
       #
       # register the keywords that we want to pay attention to
       #
       self.models["tcc"].keyVarDict["inst"].addCallback(self.TCCInstCB, callNow=False)
-      self.models["platedb"].keyVarDict["pointingInfo"].addCallback(self.PointingInfoCB, callNow=True)
+      #self.models["platedb"].keyVarDict["pointingInfo"].addCallback(self.PointingInfoCB, callNow=True)
       self.models["apogee"].keyVarDict["exposureState"].addCallback(self.ExposureStateCB, callNow=False)
       self.models["apogee"].keyVarDict["exposureWroteFile"].addCallback(self.exposureWroteFileCB, callNow=False)
       self.models["apogee"].keyVarDict["exposureWroteSummary"].addCallback(self.exposureWroteSummaryCB, callNow=False)
@@ -332,11 +332,11 @@ class Apogeeql(actorcore.Actor.Actor):
 
       if plate != Apogeeql.prevPlate or cartridge != Apogeeql.prevCartridge or pointing != Apogeeql.prevPointing:
          # we need to ignore all plates that are not for APOGEE or MANGA
-        #  survey=Apogeeql.actor.mysession.query(Survey).join(PlateToSurvey).join(Plate).filter(Plate.plate_id==plate)
-        #  if survey.count() > 0:
-        #       if survey[0].label.upper().find("APOGEE") == -1 and survey[0].label.upper().find("MANGA") == -1:
-        #           # not an apogee or marvels plate - just skip
-        #           return
+         #  survey=Apogeeql.actor.mysession.query(Survey).join(PlateToSurvey).join(Plate).filter(Plate.plate_id==plate)
+         #  if survey.count() > 0:
+         #       if survey[0].label.upper().find("APOGEE") == -1 and survey[0].label.upper().find("MANGA") == -1:
+         #           # not an apogee or marvels plate - just skip
+         #           return
 
          # we need to extract and pass a new plugmap to QuickLook
          pm = Apogeeql.actor.getPlPlugMapM(Apogeeql.actor.mysession, cartridge, plate, pointing)
@@ -400,9 +400,9 @@ class Apogeeql(actorcore.Actor.Actor):
       # Make absolute path for configuration summary file
       # We can't use sdss_access because it requires python 3
       if os.path.dirname(summaryfile)=='':
-          configgrp = '{:0>4d}XX'.format(int(configid) // 100)
-          config_dir = os.environ['SDSSCORE_DIR']+'apo/summary_files/'+configgrp+'/'
-          summary_file = config_dir+summary_file
+         configgrp = '{:0>4d}XX'.format(int(configid) // 100)
+         config_dir = os.environ['SDSSCORE_DIR']+'apo/summary_files/'+configgrp+'/'
+         summary_file = config_dir+summary_file
 
       # find the platedb.survey.pk corresponding to APOGEE (-2)
       #survey = Apogeeql.actor.mysession.query(Survey).filter(Survey.label=='APOGEE-2')
@@ -411,7 +411,7 @@ class Apogeeql(actorcore.Actor.Actor):
 
       if config_id != Apogeeql.prevPlate:
          # pass the info to IDL QL
-         Apogeeql.actor.ql_in_queue.put(('configInfo',confg_id, design_id, field_id, summary_file)
+         Apogeeql.actor.ql_in_queue.put('configInfo',confg_id, design_id, field_id, summary_file)
 
          # print 'plugMapFilename=%s' % (fname)
          Apogeeql.config_id = config_id
@@ -536,7 +536,8 @@ class Apogeeql(actorcore.Actor.Actor):
 
           try:
              with database.atomic():
-               new_exposure = Exposure(configuration_pk=2, exposure_no=expnum,
+
+               new_exposure = Exposure(configuration_id=Apogeeql.config_id, exposure_no=expnum,
                                        exposure_time=exptime, exposure_flavor_pk=13)
                new_exposure.save()
                Apogeeql.exp_pk = new_exposure.pk
