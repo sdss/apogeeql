@@ -193,6 +193,10 @@ class Apogeeql(actorcore.Actor.Actor):
    prevScanId = -1
    prevScanMJD = -1
    prevPointing='A'
+   config_id = -1
+   design_id = -1
+   field_id = -1
+   summary_file = ''
    pluggingPk = 0
    apogeeSurveyPk=1   # use the known APOGEE survey value in the db as default
    plugFname=''
@@ -276,6 +280,7 @@ class Apogeeql(actorcore.Actor.Actor):
       self.models["apogee"].keyVarDict["exposureWroteFile"].addCallback(self.exposureWroteFileCB, callNow=False)
       self.models["apogee"].keyVarDict["exposureWroteSummary"].addCallback(self.exposureWroteSummaryCB, callNow=False)
       self.models["apogee"].keyVarDict["ditherPosition"].addCallback(self.ditherPositionCB, callNow=False)
+      self.models["jaeger"].keyVarDict["configuration_loaded"].addCallback(self.configurationLoadedCB, callNow=True)
 
       #
       # Connect to the platedb
@@ -333,7 +338,7 @@ class Apogeeql(actorcore.Actor.Actor):
         #           # not an apogee or marvels plate - just skip
         #           return
 
-         # we need to extract and pass a new plugmap to IDL QuickLook
+         # we need to extract and pass a new plugmap to QuickLook
          pm = Apogeeql.actor.getPlPlugMapM(Apogeeql.actor.mysession, cartridge, plate, pointing)
 
          # routine returns a yanny par file
@@ -363,6 +368,52 @@ class Apogeeql(actorcore.Actor.Actor):
          Apogeeql.pluggingPk = pm.plugging_pk
          Apogeeql.plugFname = fname
 
+   @staticmethod
+   def configurationLoadedCB(keyVar):
+      '''callback routine for jaeger.configuration_loaded'''
+      # https://github.com/sdss/actorkeys/blob/58598b120b70693774d042eedcbd3a07461cd2fc/python/actorkeys/jaeger.py#L59
+      # jaeger.configuration_loaded
+      # configuration_id, design_id, field_id, ra_boresight, dec_boresight, position_angle, alt_boresight, az_boresight,
+      #    summary_file
+      # Key('configuration_loaded',
+      #   Int('configuration_id', help='Configuration ID'),
+      #   Int('design_id', help='Design ID'),
+      #   Int('field_id', help='Field ID'),
+      #   Float('ra_boresight', help='RA of the boresight pointing'),
+      #   Float('dec_boresight', help='Dec of the boresight pointing'),
+      #   Float('position_angle', help='Position angle of the pointing'),
+      #   Float('alt_boresight', help='Altitude of the boresight pointing'),
+      #   Float('az_boresight', help='Azimuth of the boresight pointing'),
+      #   String('summary_file', help='Summary file path'))
+
+      # print "configurationLoadedCB=",keyVar
+
+      # if pointing is None than just skip this
+      if keyVar[1] == None:
+         return
+
+      config_id = int(keyVar[0])
+      design_id = int(keyVar[1])
+      field_id = str(keyVar[2])
+      summary_file = str(keyVar[8])
+
+      # find the platedb.survey.pk corresponding to APOGEE (-2)
+      #survey = Apogeeql.actor.mysession.query(Survey).filter(Survey.label=='APOGEE-2')
+      #if survey.count() > 0:
+      #   Apogeeql.actor.apogeeSurveyPk = survey[0].pk
+
+      if config_id != Apogeeql.prevPlate:
+         # pass the info to IDL QL
+         Apogeeql.actor.ql_in_queue.put(('configInfo',confg_id, design_id, field_id, summary_file)
+
+         # print 'plugMapFilename=%s' % (fname)
+         Apogeeql.config_id = config_id
+         Apogeeql.design_id = design_id
+         Apogeeql.field_id = field_id
+         Apogeeql.summary_file = summary_file
+         Apogeeql.prevPointing = config_id
+         Apogeeql.prevPlate = config_id
+         Apogeeql.prevCartridge = 'FPS'
 
    @staticmethod
    def ExposureStateCB(keyVar):
@@ -752,6 +803,17 @@ class Apogeeql(actorcore.Actor.Actor):
       hdulist[0].header.update('LAMPTHAR',lampthar, 'CalBox ThArNe Lamp Status')
       hdulist[0].header.update('LAMPSHTR',lampshtr, 'CalBox Shutter Lamp Status')
       hdulist[0].header.update('LAMPCNTL',lampcntl, 'CalBox Controller Status')
+
+      # New SDSS-V FPS keywords
+      # CARTID (set to FPS-N), DESIGNID, CONFID, and FIELDID. 
+      hdulist[0].header.update('CARTID','FPS', 'Using FPS')
+      hdulist[0].header.update('CONFIGID',self.config_id, 'FPS configID')
+      hdulist[0].header.update('DESIGNID',self.design_id, 'DesignID')
+      hdulist[0].header.update('FIELDID',self.field_id, 'FieldID')
+      hdulist[0].header.update('CONFIGFL',self.summary_file, 'config summary file')
+
+      # Add FPI information
+      #hdulist[0].header.update('LAMPFPI',lampfpi, 'FPI Lamp shutter status')
 
       """
       # guider i refractionCorrection=1.00000
