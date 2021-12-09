@@ -397,6 +397,13 @@ class Apogeeql(actorcore.Actor.Actor):
       field_id = str(keyVar[2])
       summary_file = str(keyVar[8])
 
+      # Make absolute path for configuration summary file
+      # We can't use sdss_access because it requires python 3
+      if os.path.dirname(summaryfile)=='':
+          configgrp = '{:0>4d}XX'.format(int(configid) // 100)
+          config_dir = os.environ['SDSSCORE_DIR']+'apo/summary_files/'+configgrp+'/'
+          summary_file = config_dir+summary_file
+
       # find the platedb.survey.pk corresponding to APOGEE (-2)
       #survey = Apogeeql.actor.mysession.query(Survey).filter(Survey.label=='APOGEE-2')
       #if survey.count() > 0:
