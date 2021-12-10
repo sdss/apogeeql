@@ -813,14 +813,6 @@ class Apogeeql(actorcore.Actor.Actor):
       hdulist[0].header.update('LAMPSHTR',lampshtr, 'CalBox Shutter Lamp Status')
       hdulist[0].header.update('LAMPCNTL',lampcntl, 'CalBox Controller Status')
 
-      # New SDSS-V FPS keywords
-      # CARTID (set to FPS-N), DESIGNID, CONFID, and FIELDID. 
-      hdulist[0].header.update('CARTID','FPS', 'Using FPS')
-      hdulist[0].header.update('CONFIGID',self.config_id, 'FPS configID')
-      hdulist[0].header.update('DESIGNID',self.design_id, 'DesignID')
-      hdulist[0].header.update('FIELDID',self.field_id, 'FieldID')
-      hdulist[0].header.update('CONFIGFL',self.summary_file, 'config summary file')
-
       # Add FPI information
       #hdulist[0].header.update('LAMPFPI',lampfpi, 'FPI Lamp shutter status')
 
@@ -857,6 +849,15 @@ class Apogeeql(actorcore.Actor.Actor):
               hdulist[0].header.update(name, val, comment)
           except:
               self.logger.warn('text="failed to add card: %s=%s (%s)"' % (name, val, comment))
+
+
+      # New SDSS-V FPS keywords
+      # CARTID (set to FPS-N), DESIGNID, CONFID, and FIELDID. 
+      hdulist[0].header.update('CARTID','FPS', 'Using FPS')
+      hdulist[0].header.update('CONFIGID',self.config_id, 'FPS configID')
+      hdulist[0].header.update('DESIGNID',self.design_id, 'DesignID')
+      hdulist[0].header.update('FIELDID',self.field_id, 'FieldID')
+      hdulist[0].header.update('CONFIGFL',self.summary_file, 'config summary file')
 
       # repair (if possible) any problems with the header (mainly OBSCMNT too long)
       hdulist.verify('fix')
