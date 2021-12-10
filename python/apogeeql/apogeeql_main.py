@@ -386,7 +386,7 @@ class Apogeeql(actorcore.Actor.Actor):
       #   Float('az_boresight', help='Azimuth of the boresight pointing'),
       #   String('summary_file', help='Summary file path'))
 
-      # print "configurationLoadedCB=",keyVar
+      print("configurationLoadedCB=",keyVar)
 
       # if pointing is None than just skip this
       if keyVar[1] == None:
@@ -399,10 +399,11 @@ class Apogeeql(actorcore.Actor.Actor):
 
       # Make absolute path for configuration summary file
       # We can't use sdss_access because it requires python 3
-      if os.path.dirname(summaryfile)=='':
-         configgrp = '{:0>4d}XX'.format(int(configid) // 100)
-         config_dir = os.environ['SDSSCORE_DIR']+'apo/summary_files/'+configgrp+'/'
-         summary_file = config_dir+summary_file
+      #if os.path.dirname(summary_file)=='':
+      #   configgrp = '{:0>4d}XX'.format(int(configid) // 100)
+      #   config_dir = os.environ['SDSSCORE_DIR']+'apo/summary_files/'+configgrp+'/'
+      #   summary_file = config_dir+summary_file
+      # summary_file has the absolute path!
 
       # find the platedb.survey.pk corresponding to APOGEE (-2)
       #survey = Apogeeql.actor.mysession.query(Survey).filter(Survey.label=='APOGEE-2')
@@ -411,7 +412,7 @@ class Apogeeql(actorcore.Actor.Actor):
 
       if config_id != Apogeeql.prevPlate:
          # pass the info to IDL QL
-         Apogeeql.actor.ql_in_queue.put('configInfo',confg_id, design_id, field_id, summary_file)
+         Apogeeql.actor.ql_in_queue.put(('configInfo',config_id, summary_file))
 
          # print 'plugMapFilename=%s' % (fname)
          Apogeeql.config_id = config_id
