@@ -607,7 +607,7 @@ class Apogeeql(actorcore.Actor.Actor):
       #for s in Apogeeql.actor.qlSources:
       #    s.sendLine('ditherPosition=%f,%s' % (Apogeeql.ditherPos, Apogeeql.namedDitherPos))
       Apogeeql.actor.ql_in_queue.put(('ditherPosition',Apogeeql.ditherPos, Apogeeql.namedDitherPos),block=True)
-
+      
 
    def startQuickLook(self):
       '''Open a twisted reactor to communicate with IDL socket'''
@@ -812,6 +812,11 @@ class Apogeeql(actorcore.Actor.Actor):
       hdulist[0].header.update('LAMPTHAR',lampthar, 'CalBox ThArNe Lamp Status')
       hdulist[0].header.update('LAMPSHTR',lampshtr, 'CalBox Shutter Lamp Status')
       hdulist[0].header.update('LAMPCNTL',lampcntl, 'CalBox Controller Status')
+
+      # add gang connector state
+      # 17 is plugged into FPS
+      gangstate = self.getGangState()
+      hdulist[0].header.update('GANGSTAT',gangstate, 'APOGEE Gang Connector State')
 
       # Add FPI information
       #hdulist[0].header.update('LAMPFPI',lampfpi, 'FPI Lamp shutter status')
@@ -1022,6 +1027,19 @@ class Apogeeql(actorcore.Actor.Actor):
        p0.write(archivefile)
 
        return
+
+   def getGangState(self):
+       """ Get APOGEE gang connector state."""
+       
+       # get the lamp status from the actor
+       gangstate = Apogeeql.actor.models['mcp'].keyVarDict['apogeeGang']
+
+       # Key('apogeeGang',
+       # Enum('0', '1', '17', '4', '12', '20', '28',
+       #      labelHelp=('Unknown', 'Disconnected', 'At Cart', 'Podium?',
+       #                 'Podium: dense', 'Podium + FPI', 'Podium dense + FPI'))),
+
+       return gangstate
 
    def getCalibBoxStatus(self):
        """Insert a new row in the platedb.exposure table """
