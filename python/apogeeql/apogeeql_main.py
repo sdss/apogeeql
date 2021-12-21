@@ -815,8 +815,8 @@ class Apogeeql(actorcore.Actor.Actor):
 
       # add gang connector state
       # 17 is plugged into FPS
-      gangstate = self.getGangState()
-      hdulist[0].header.update('GANGSTAT',gangstate, 'APOGEE Gang Connector State')
+      #gangstate = self.getGangState()
+      #hdulist[0].header.update('GANGSTAT',gangstate, 'APOGEE Gang Connector State')
 
       # Add FPI information
       #hdulist[0].header.update('LAMPFPI',lampfpi, 'FPI Lamp shutter status')
