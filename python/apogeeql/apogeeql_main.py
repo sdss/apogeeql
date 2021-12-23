@@ -814,9 +814,8 @@ class Apogeeql(actorcore.Actor.Actor):
       hdulist[0].header.update('LAMPCNTL',lampcntl, 'CalBox Controller Status')
 
       # add gang connector state
-      # 17 is plugged into FPS
-      #gangstate = self.getGangState()
-      #hdulist[0].header.update('GANGSTAT',gangstate, 'APOGEE Gang Connector State')
+      gangstate,gstate = self.getGangState()
+      hdulist[0].header.update('GANGSTAT',gstate, 'APOGEE Gang Connector State')
 
       # Add FPI information
       #hdulist[0].header.update('LAMPFPI',lampfpi, 'FPI Lamp shutter status')
@@ -1033,13 +1032,17 @@ class Apogeeql(actorcore.Actor.Actor):
        
        # get the lamp status from the actor
        gangstate = Apogeeql.actor.models['mcp'].keyVarDict['apogeeGang']
+       gstate = 'Podium'
+       if gangstate==17 or gangstate==18:
+           gstate = 'FPS'
+
 
        # Key('apogeeGang',
        # Enum('0', '1', '17', '4', '12', '20', '28',
        #      labelHelp=('Unknown', 'Disconnected', 'At Cart', 'Podium?',
        #                 'Podium: dense', 'Podium + FPI', 'Podium dense + FPI'))),
 
-       return gangstate
+       return gangstate, gstate
 
    def getCalibBoxStatus(self):
        """Insert a new row in the platedb.exposure table """
