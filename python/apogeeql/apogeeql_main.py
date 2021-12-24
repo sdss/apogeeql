@@ -1031,7 +1031,7 @@ class Apogeeql(actorcore.Actor.Actor):
        """ Get APOGEE gang connector state."""
        
        # get the lamp status from the actor
-       gangstate = Apogeeql.actor.models['mcp'].keyVarDict['apogeeGang']
+       gangstate = Apogeeql.actor.models['mcp'].keyVarDict['apogeeGang'][0]
        gstate = 'Podium'
        if gangstate==17 or gangstate==18:
            gstate = 'FPS'
