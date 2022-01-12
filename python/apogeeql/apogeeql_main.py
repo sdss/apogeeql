@@ -555,10 +555,11 @@ class Apogeeql(actorcore.Actor.Actor):
          #Create new exposure object
          #currently hard-coded for survey=APOGEE-2
 
-          if Apogeeql.prevPlate > 15000:
-              surveyLabel = 'MWM'
-          else:
-              surveyLabel = 'APOGEE-2'
+          #if Apogeeql.prevPlate > 15000:
+          #    surveyLabel = 'MWM'
+          #else:
+          #    surveyLabel = 'APOGEE-2'
+          surveyLabel = 'MWM'
 
           try:
              with database.atomic():
@@ -577,6 +578,7 @@ class Apogeeql(actorcore.Actor.Actor):
                #                        exposure_time=exptime, exposure_flavor_pk=13)
                new_exposure.save()
                Apogeeql.exp_pk = new_exposure.pk
+
           except RuntimeError as e:
              Apogeeql.actor.logger.error('Failed in call addExposure for exposureNo %d' %expnum)
              Apogeeql.actor.logger.error('Exception: %s'%e)
