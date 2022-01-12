@@ -516,12 +516,37 @@ class Apogeeql(actorcore.Actor.Actor):
       #   return
       # COMMENTING THIS OUT. DLN 10/26/21
 
+      # Exposure flavor 
+      # pk |   label    
+      # ----+------------
+      #  1 | Science
+      #  2 | Arc
+      #  3 | Flat
+      #  4 | Bias
+      #  5 | Object
+      #  6 | Dark
+      #  7 | Sky
+      #  8 | Calib
+      #  9 | LocalFlat
+      # 10 | SuperDark
+      # 11 | SuperFlat
+      # 12 | DomeFlat
+      # 13 | QuartzFlat
+      # 14 | ArcLamp
+      expflavordict = {'Science':1, 'Arc':2, 'Flat':3, 'Bias':4, 'Object':5, 'Dark':6,
+                       'Sky':7, 'Calib':8, 'LocalFlat':9, 'SuperDark':10, 'SuperFlat':11,
+                       'DomeFlat':12, 'QuartzFlat':13, 'ArcLamp':14}
+      # this converts the APOGEE STUI exptype to the exposure_flavor "label" value
+      exptype2flavor = {'OBJECT':'Science', 'DARK':'Dark', 'INTERNALFLAT':'InternalFlat',
+                        'QUARTZFLAT':'QuartzFlat', 'DOMEFLAT':'DomeFlat',
+                        'ARCLAMP':'ArcLamp', 'BLACKBODY':'Calib'}
+
       # get the mjd from the filename
       res=filename.split('-')
       try:
          mjd = int(res[1][:4]) + int(Apogeeql.actor.startOfSurvey)
-         readnum=int(res[2].split('.')[0])
-         expnum=int(res[1])
+         readnum = int(res[2].split('.')[0])
+         expnum = int(res[1])
       except:
          raise RuntimeError( "The filename doesn't match expected format (%s)" % (filename))
 
@@ -537,9 +562,19 @@ class Apogeeql(actorcore.Actor.Actor):
 
           try:
              with database.atomic():
-
+               # exposure_flavor "label" value for this exposure
+               expflavorlabel = exptype2flavor.get(Apogeeql.expType)
+               if expflavorlabel is None:
+                  expflavorlabel = 'Object'
+               # get exposure_flavor_pk for this exposure
+               expflavorpk = expflavordict.get(expflavorlabel)
+               if expflavorpk is None:
+                   expflavorpk = 5  # Object by default
+               print('exptype = ',Apogeeql.expType)
+               print('expflavorpk = ',expflavorpk)
                new_exposure = Exposure(configuration_id=Apogeeql.config_id, exposure_no=expnum,
-                                       exposure_time=exptime, exposure_flavor_pk=13)
+                                       exposure_time=exptime, exposure_flavor_pk=expflavorpk)
+               #                        exposure_time=exptime, exposure_flavor_pk=13)
                new_exposure.save()
                Apogeeql.exp_pk = new_exposure.pk
           except RuntimeError as e:
@@ -822,7 +857,7 @@ class Apogeeql(actorcore.Actor.Actor):
       # shutterLimitSwitch=True,False   shutter is open
       # Any other combination means there's something wrong with the shutter.
       shutterstate = self.getShutterState()
-      hdulist[0].header.update('SHUTTER',shuytterstate, 'APOGEE Shutter State')
+      hdulist[0].header.update('SHUTTER',shutterstate, 'APOGEE Shutter State')
 
       # Add FPI information
       #hdulist[0].header.update('LAMPFPI',lampfpi, 'FPI Lamp shutter status')
@@ -1044,14 +1079,17 @@ class Apogeeql(actorcore.Actor.Actor):
        
        # get the shutter status from the actor
        shutterinfo = Apogeeql.actor.models['apogee'].keyVarDict['shutterLimitSwitch']
-       if shutterinfo == (False,True):
+       if tuple(shutterinfo) == (False,True):
            shutterstate = 'Closed'
-       if shutterinfo == (True,False):
+       elif tuple(shutterinfo) == (True,False):
            shutterstate = 'Open'
        else:
            shutterstate = 'Unknown'
 
-      return shutterstate
+       print('shutterinfo = ',shutterinfo)
+       print('shutterstate = ',shutterstate)
+
+       return shutterstate
 
    def getGangState(self):
        """ Get APOGEE gang connector state."""
@@ -1059,14 +1097,16 @@ class Apogeeql(actorcore.Actor.Actor):
        # get the lamp status from the actor
        gangstate = Apogeeql.actor.models['mcp'].keyVarDict['apogeeGang'][0]
        gstate = 'Podium'
-       if gangstate==17 or gangstate==18:
+       if str(gangstate)=='17' or str(gangstate)=='18':
            gstate = 'FPS'
-
 
        # Key('apogeeGang',
        # Enum('0', '1', '17', '4', '12', '20', '28',
        #      labelHelp=('Unknown', 'Disconnected', 'At Cart', 'Podium?',
        #                 'Podium: dense', 'Podium + FPI', 'Podium dense + FPI'))),
+
+       print('gangstate = ',gangstate)
+       print('gstate = ',gstate)
 
        return gangstate, gstate
 
