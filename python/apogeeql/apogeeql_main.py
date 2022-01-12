@@ -817,6 +817,13 @@ class Apogeeql(actorcore.Actor.Actor):
       gangstate,gstate = self.getGangState()
       hdulist[0].header.update('GANGSTAT',gstate, 'APOGEE Gang Connector State')
 
+      # add shutter information
+      # shutterLimitSwitch=False,True   shutter is closed
+      # shutterLimitSwitch=True,False   shutter is open
+      # Any other combination means there's something wrong with the shutter.
+      shutterstate = self.getShutterState()
+      hdulist[0].header.update('SHUTTER',shuytterstate, 'APOGEE Shutter State')
+
       # Add FPI information
       #hdulist[0].header.update('LAMPFPI',lampfpi, 'FPI Lamp shutter status')
 
@@ -1026,6 +1033,25 @@ class Apogeeql(actorcore.Actor.Actor):
        p0.write(archivefile)
 
        return
+
+   def getShutterState(self):
+       """ Get APOGEE shutter state."""
+
+       # add shutter information
+       # shutterLimitSwitch=False,True   shutter is closed
+       # shutterLimitSwitch=True,False   shutter is open
+       # Any other combination means there's something wrong with the shutter.
+       
+       # get the shutter status from the actor
+       shutterinfo = Apogeeql.actor.models['apogee'].keyVarDict['shutterLimitSwitch']
+       if shutterinfo == (False,True):
+           shutterstate = 'Closed'
+       if shutterinfo == (True,False):
+           shutterstate = 'Open'
+       else:
+           shutterstate = 'Unknown'
+
+      return shutterstate
 
    def getGangState(self):
        """ Get APOGEE gang connector state."""
