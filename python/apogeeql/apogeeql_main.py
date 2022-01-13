@@ -573,9 +573,10 @@ class Apogeeql(actorcore.Actor.Actor):
                    expflavorpk = 5  # Object by default
                print('exptype = ',Apogeeql.expType)
                print('expflavorpk = ',expflavorpk)
+               # survey_pk=2 is for MWM
                new_exposure = Exposure(configuration_id=Apogeeql.config_id, exposure_no=expnum,
-                                       exposure_time=exptime, exposure_flavor_pk=expflavorpk)
-               #                        exposure_time=exptime, exposure_flavor_pk=13)
+                                       exposure_time=exptime, exposure_flavor_pk=expflavorpk,
+                                       start_time=datetime.datetime.now(),survey_pk=2)
                new_exposure.save()
                Apogeeql.exp_pk = new_exposure.pk
 
