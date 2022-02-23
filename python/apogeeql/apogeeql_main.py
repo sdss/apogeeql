@@ -268,7 +268,7 @@ class Apogeeql(actorcore.Actor.Actor):
       #
       self.models = {}
       # for actor in ["mcp", "guider", "platedb", "tcc", "apo", "apogeetest"]:
-      for actor in ["mcp", "guider", "platedb", "tcc", "apogee", "apogeecal", "hal", "jaeger"]:
+      for actor in ["mcp", "guider", "cherno", "platedb", "tcc", "apogee", "apogeecal", "hal", "jaeger"]:
          self.models[actor] = opscore.actor.model.Model(actor)
 
       #
@@ -516,8 +516,8 @@ class Apogeeql(actorcore.Actor.Actor):
       #   return
       # COMMENTING THIS OUT. DLN 10/26/21
 
-      # Exposure flavor 
-      # pk |   label    
+      # Exposure flavor
+      # pk |   label
       # ----+------------
       #  1 | Science
       #  2 | Arc
@@ -645,7 +645,7 @@ class Apogeeql(actorcore.Actor.Actor):
       #for s in Apogeeql.actor.qlSources:
       #    s.sendLine('ditherPosition=%f,%s' % (Apogeeql.ditherPos, Apogeeql.namedDitherPos))
       Apogeeql.actor.ql_in_queue.put(('ditherPosition',Apogeeql.ditherPos, Apogeeql.namedDitherPos),block=True)
-      
+
 
    def startQuickLook(self):
       '''Open a twisted reactor to communicate with IDL socket'''
@@ -873,7 +873,10 @@ class Apogeeql(actorcore.Actor.Actor):
       """
 
       # guider i seeing=2.09945
-      seeing = Apogeeql.actor.models['guider'].keyVarDict['seeing'][0]
+      #seeing = Apogeeql.actor.models['guider'].keyVarDict['seeing'][0]
+      seeing = Apogeeql.actor.models['cherno'].keyVarDict['astrometry_fit'][4]
+      #print('cherno astrometry_fit: ',Apogeeql.actor.models['cherno'].keyVarDict['astrometry_fit'])
+      #print('seeing: ',seeing)
       try:
           seeing=float(seeing)
           if seeing == float('NaN'):
@@ -901,7 +904,7 @@ class Apogeeql(actorcore.Actor.Actor):
 
 
       # New SDSS-V FPS keywords
-      # CARTID (set to FPS-N), DESIGNID, CONFID, and FIELDID. 
+      # CARTID (set to FPS-N), DESIGNID, CONFID, and FIELDID.
       hdulist[0].header.update('CARTID','FPS', 'Using FPS')
       hdulist[0].header.update('CONFIGID',self.config_id, 'FPS configID')
       hdulist[0].header.update('DESIGNID',self.design_id, 'DesignID')
@@ -1079,7 +1082,7 @@ class Apogeeql(actorcore.Actor.Actor):
        # shutterLimitSwitch=False,True   shutter is closed
        # shutterLimitSwitch=True,False   shutter is open
        # Any other combination means there's something wrong with the shutter.
-       
+
        # get the shutter status from the actor
        shutterinfo = Apogeeql.actor.models['apogee'].keyVarDict['shutterLimitSwitch']
        if tuple(shutterinfo) == (False,True):
@@ -1096,7 +1099,7 @@ class Apogeeql(actorcore.Actor.Actor):
 
    def getGangState(self):
        """ Get APOGEE gang connector state."""
-       
+
        # get the lamp status from the actor
        gangstate = Apogeeql.actor.models['mcp'].keyVarDict['apogeeGang'][0]
        gstate = 'Podium'
