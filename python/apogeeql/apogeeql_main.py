@@ -5,8 +5,8 @@ from twisted.protocols.basic import LineReceiver
 from twisted.internet import reactor
 from twisted.internet.protocol import Protocol, Factory
 
-from sdss.internal.database.connections.APODatabaseAdminLocalConnection import db # access to engine, metadata, Session
-from sdss.internal.database.apo.platedb.ModelClasses import *
+# from sdss.internal.database.connections.APODatabaseAdminLocalConnection import db # access to engine, metadata, Session
+# from sdss.internal.database.apo.platedb.ModelClasses import *
 
 import sqlalchemy
 
@@ -65,7 +65,12 @@ class Exposure(Model):
 
     class Meta:
         database = database
-        schema = 'opsdb'
+        # schema = 'opsdb'
+        observatory = os.getenv("OBSERVATORY")
+        if observatory == "APO":
+            schema = 'opsdb_apo'
+        else:
+            schema = 'opsdb_lco'
         table_name = 'exposure'
 
 
@@ -285,7 +290,7 @@ class Apogeeql(actorcore.Actor.Actor):
       #
       # Connect to the platedb
       #
-      self.mysession = db.Session()
+      # self.mysession = db.Session()
 
       self.ql_running = False
       self.bndl_running = False
