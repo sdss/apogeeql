@@ -5,11 +5,6 @@ from twisted.protocols.basic import LineReceiver
 from twisted.internet import reactor
 from twisted.internet.protocol import Protocol, Factory
 
-# from sdss.internal.database.connections.APODatabaseAdminLocalConnection import db # access to engine, metadata, Session
-# from sdss.internal.database.apo.platedb.ModelClasses import *
-
-import sqlalchemy
-
 import opscore.actor.model
 import opscore.actor.keyvar
 
@@ -73,118 +68,6 @@ class Exposure(Model):
             schema = 'opsdb_lco'
         table_name = 'exposure'
 
-
-#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-
-#class QuickLookLineServer(LineReceiver):
-#    def connectionMade(self):
-#        # the IDL end-of-line string is linefeed only (no carriage-return)
-#        # we need to change the delimiter to be able to detect a full line
-#        # and have lineReceived method be called (otherwise it just sits there)
-#        self.delimiter = '\n'
-#        self.peer = self.transport.getPeer()
-#        self.factory.qlActor.qlSources.append(self)
-#        logging.info("Connection from %s %s" % (self.peer.host, self.peer.port))
-#        print "Connection from ", self.peer.host, self.peer.port
-#        # ping the quicklook
-#        if self.factory.qlActor.ql_pid > 0:
-#           for s in self.factory.qlActor.qlSources:
-#              s.sendLine('PING')
-#              s.sendLine('STARTING')
-#
-#    def lineReceived(self, line):
-#        if line.upper()=='PONG':
-#            # normal response from aliveness test
-#            self.factory.qlActor.watchDogStatus = True
-#        elif line.upper()=='QUIT':
-#            # request to disconnect
-#            self.transport.loseConnection()
-#        elif line.upper()=='STARTED':
-#            # we got the initial response from the apql_wrapper
-#            # send the PointingInfo stuff
-#            if self.factory.qlActor.prevPlate != -1:
-#               for s in self.factory.qlActor.qlSources:
-#                  s.sendLine('plugMapInfo=%s,%s,%s,%s' % (self.factory.qlActor.prevPlate, \
-#                       self.factory.qlActor.prevScanMJD, self.factory.qlActor.prevScanId, \
-#                       self.factory.qlActor.plugFname))
-#        elif line == "callback":
-#            logging.info("preparing callback")
-#            reactor.callLater(5.0,self.sendcomment)
-#        else:
-#            # assume the messages are properly formatted to pass along
-#            # print 'Received from apql_wrapper.pro: ',line
-#            self.factory.qlActor.bcast.finish(line)
-#
-#    def connectionLost(self, reason):
-#        logging.info("Disconnected from %s %s"  % (self.peer.port, reason.value))
-#
-#    def sendcomment(self):
-#        logging.info("in the callback routine")
-
-
-#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-
-#class QLFactory(ClientFactory):
-#    protocol = QuickLookLineServer
-#    def __init__(self, qlActor):
-#        self.qlActor=qlActor
-
-#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-
-#class QuickRedLineServer(LineReceiver):
-#    def connectionMade(self):
-#        # the IDL end-of-line string is linefeed only (no carriage-return)
-#        # we need to change the delimiter to be able to detect a full line
-#        # and have lineReceived method be called (otherwise it just sits there)
-#        self.delimiter = '\n'
-#        self.peer = self.transport.getPeer()
-#        self.factory.qrActor.qrSources.append(self)
-#        logging.info("apqr_wrapper Connection from %s %s" % (self.peer.host, self.peer.port))
-#        print "apqr_wrapper -> Connection from ", self.peer.host, self.peer.port
-#        # ping the quicklook
-#        if self.factory.qrActor.ql_pid > 0:
-#           for s in self.factory.qrActor.qrSources:
-#              s.sendLine('PING')
-#              s.sendLine('STARTING')
-#
-#    def lineReceived(self, line):
-#        if line.upper()=='PONG':
-#            # normal response from aliveness test
-#            self.factory.qrActor.watchDogStatus = True
-#        if line=='quit':
-#            # request to disconnect
-#            self.transport.loseConnection()
-#        elif line.upper()=='STARTED':
-#            # we got the initial response from the apql_wrapper
-#            # send the PointingInfo stuff
-#            if self.factory.qrActor.prevPlate != -1:
-#               for s in self.factory.qrActor.qrSources:
-#                  s.sendLine('plugMapInfo=%s,%s,%s,%s' % (self.factory.qrActor.prevPlate, \
-#                       self.factory.qrActor.prevScanMJD, self.factory.qrActor.prevScanId, \
-#                       self.factory.qrActor.plugFname))
-#        elif line == "callback":
-#            logging.info("preparing callback")
-#            reactor.callLater(5.0,self.sendcomment)
-#        else:
-#            # assume the messages are properly formatted to pass along
-#            # print 'Received from apqr_wrapper.pro: ',line
-#            self.factory.qrActor.bcast.finish(line)
-#
-#    def connectionLost(self, reason):
-#        logging.info("Disconnected from %s %s"  % (self.peer.port, reason.value))
-#
-#    def sendcomment(self):
-#        logging.info("in the callback routine")
-
-
-#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-
-#class QRFactory(ClientFactory):
-#    protocol = QuickRedLineServer
-#    def __init__(self, qrActor):
-#        self.qrActor=qrActor
-
-#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 class Apogeeql(actorcore.Actor.Actor):
 
@@ -273,14 +156,13 @@ class Apogeeql(actorcore.Actor.Actor):
       #
       self.models = {}
       # for actor in ["mcp", "guider", "platedb", "tcc", "apo", "apogeetest"]:
-      for actor in ["mcp", "guider", "cherno", "platedb", "tcc", "apogee", "apogeecal", "hal", "jaeger"]:
+      for actor in ["mcp", "guider", "cherno", "tcc", "apogee", "apogeecal", "hal", "jaeger"]:
          self.models[actor] = opscore.actor.model.Model(actor)
 
       #
       # register the keywords that we want to pay attention to
       #
       self.models["tcc"].keyVarDict["inst"].addCallback(self.TCCInstCB, callNow=False)
-      #self.models["platedb"].keyVarDict["pointingInfo"].addCallback(self.PointingInfoCB, callNow=True)
       self.models["apogee"].keyVarDict["exposureState"].addCallback(self.ExposureStateCB, callNow=False)
       self.models["apogee"].keyVarDict["exposureWroteFile"].addCallback(self.exposureWroteFileCB, callNow=False)
       self.models["apogee"].keyVarDict["exposureWroteSummary"].addCallback(self.exposureWroteSummaryCB, callNow=False)
@@ -301,77 +183,6 @@ class Apogeeql(actorcore.Actor.Actor):
 
       # print 'TCCInstCB keyVar=',keyVar
       Apogeeql.inst = keyVar[0]
-
-   @staticmethod
-   def PointingInfoCB(keyVar):
-      '''callback routine for platedb.pointingInfo'''
-      # plate_id, cartridge_id, pointing_id, boresight_ra, boresight_dec, hour_angle, temperature, wavelength
-      # print "PointingInfoCB=",keyVar
-
-      # if pointing is None than just skip this
-      if keyVar[1] == None:
-         return
-
-      plate = int(keyVar[0])
-      cartridge = int(keyVar[1])
-      pointing = str(keyVar[2])
-
-      """
-      MODIFIED TO TESTING QUICKLOOK ON TEST DATABASE WITH SIMULATED DATA AND FAKE ICS
-
-      cartridge = 3
-      plate = 4918
-      pointing = 'A'
-
-      cartridge = 1
-      plate = 4929
-      pointing = 'A'
-      """
-
-      # print Apogeeql.actor.models['platedb'].keyVarDict['activePlugging']
-
-      # find the platedb.survey.pk corresponding to APOGEE (-2)
-      survey = Apogeeql.actor.mysession.query(Survey).filter(Survey.label=='APOGEE-2')
-      if survey.count() > 0:
-         Apogeeql.actor.apogeeSurveyPk = survey[0].pk
-
-      if plate != Apogeeql.prevPlate or cartridge != Apogeeql.prevCartridge or pointing != Apogeeql.prevPointing:
-         # we need to ignore all plates that are not for APOGEE or MANGA
-         #  survey=Apogeeql.actor.mysession.query(Survey).join(PlateToSurvey).join(Plate).filter(Plate.plate_id==plate)
-         #  if survey.count() > 0:
-         #       if survey[0].label.upper().find("APOGEE") == -1 and survey[0].label.upper().find("MANGA") == -1:
-         #           # not an apogee or marvels plate - just skip
-         #           return
-
-         # we need to extract and pass a new plugmap to QuickLook
-         pm = Apogeeql.actor.getPlPlugMapM(Apogeeql.actor.mysession, cartridge, plate, pointing)
-
-         # routine returns a yanny par file
-         # replace plPlugMapM-xxxx by plPlugMapA-xxxx
-         # str() to convert from unicode, as twisted can't take it.
-         fname = str(pm.filename)
-         p = fname.find('MapM')
-         fname  = os.path.join(Apogeeql.actor.plugmap_dir,fname[0:p+3]+'A'+fname[p+4:])
-
-         # print 'fname=',fname
-         Apogeeql.actor.makeApogeePlugMap(pm, fname, plate)
-
-         # pass the info to IDL QL
-         #for s in Apogeeql.actor.qlSources:
-         #    s.sendLine('plugMapInfo=%s,%s,%s,%s' % (plate, pm.fscan_mjd, pm.fscan_id, fname))
-         #for s in Apogeeql.actor.qrSources:
-         #    s.sendLine('plugMapInfo=%s,%s,%s,%s' % (plate, pm.fscan_mjd, pm.fscan_id, fname))
-         Apogeeql.actor.ql_in_queue.put(('plugMapInfo',plate, pm.fscan_mjd, pm.fscan_id, fname))
-
-         # print 'plugMapFilename=%s' % (fname)
-         Apogeeql.prevPointing = pointing
-         Apogeeql.prevPlate = plate
-         Apogeeql.prevCartridge = cartridge
-         Apogeeql.prevScanId = pm.fscan_id
-         Apogeeql.prevScanMJD = pm.fscan_mjd
-         # the plugging_pk is needed to find the right observation_pk
-         Apogeeql.pluggingPk = pm.plugging_pk
-         Apogeeql.plugFname = fname
 
    @staticmethod
    def configurationLoadedCB(keyVar):
@@ -907,7 +718,6 @@ class Apogeeql(actorcore.Actor.Actor):
           except:
               self.logger.warn('text="failed to add card: %s=%s (%s)"' % (name, val, comment))
 
-
       # New SDSS-V FPS keywords
       # CARTID (set to FPS-N), DESIGNID, CONFID, and FIELDID.
       hdulist[0].header.update('CARTID','FPS', 'Using FPS')
@@ -921,164 +731,6 @@ class Apogeeql(actorcore.Actor.Actor):
       hdulist.writeto(outFile, clobber=True, output_verify='warn', checksum=True)
       os.chmod(outFile,0o444) # all read only
       return outFile, starttime, exptime
-
-
-   def getPlPlugMapM(self, session, cartridgeId, plateId, pointingName):
-       """Return the plPlugMapM given a plateId and pointingName"""
-
-       try:
-           pm = session.query(PlPlugMapM).join(Plugging,Plate,Cartridge,ActivePlugging).\
-                   filter(Plate.plate_id==plateId).\
-                   filter(Cartridge.number==cartridgeId).\
-                   filter(PlPlugMapM.pointing_name==pointingName).order_by(PlPlugMapM.fscan_mjd.desc()).\
-                   order_by(PlPlugMapM.fscan_id.desc()).one()
-       except sqlalchemy.orm.exc.NoResultFound:
-           raise RuntimeError("NO plugmap from for plate %d" % (plateId))
-       except sqlalchemy.orm.exc.MultipleResultsFound:
-           # raise RuntimeError, ("More than one plugmap from for plate %d" % (plateId))
-           # use thae last entry hoping all is well
-           pm = session.query(PlPlugMapM).join(Plugging,Plate,Cartridge,ActivePlugging).\
-                   filter(Plate.plate_id==plateId).\
-                   filter(Cartridge.number==cartridgeId).\
-                   filter(PlPlugMapM.pointing_name==pointingName).order_by(PlPlugMapM.fscan_mjd.desc()).\
-                   order_by(PlPlugMapM.fscan_id.desc())
-           pm=pm[0]
-
-       return pm
-
-   def makeApogeePlugMap(self, plugmap, newfilename, plate):
-       """Return the plPlugMapM given a plateId and pointingName"""
-
-       from sqlalchemy import and_
-
-       # replace the \r with \n to get yanny to parse the text properly
-       import re
-       data = re.sub("\r", "\n", plugmap.file)
-
-       # append to the standard plPlugMap to add 2mass_style and J, H, Ks mags
-       par = yanny.yanny()
-       par._contents = data
-       par._parse()
-       p0 = par
-
-       # update the definition of PLUGMAPOBJ
-       pos=0
-       for t in p0.tables():
-           if t=='PLUGMAPOBJ':
-               p0['symbols']['struct'][pos] = (p0['symbols']['struct'][pos]).replace('secTarget;','secTarget;\n char tmass_style[30];')
-               break
-           else:
-               pos+=1
-
-       p0['symbols']['PLUGMAPOBJ'].append('tmass_style')
-       p0['PLUGMAPOBJ']['tmass_style']=[]
-       for i in range(p0.size('PLUGMAPOBJ')):
-           p0['PLUGMAPOBJ']['tmass_style'].append('-')
-
-
-       # get the needed information from the plate_hole
-       #ph = self.mysession.query(Fiber).join(PlateHole).\
-       #    filter(Fiber.pl_plugmap_m_pk==plugmap.pk).order_by(Fiber.fiber_id).\
-       #    values('fiber_id','tmass_j','tmass_h','tmass_k','apogee_target1','apogee_target2')
-
-       ph = self.mysession.query(Fiber).join(PlateHole).\
-            filter(Fiber.pl_plugmap_m_pk==plugmap.pk).order_by(Fiber.fiber_id).\
-            with_entities(Fiber.fiber_id, PlateHole.tmass_j, PlateHole.tmass_h,
-                          PlateHole.tmass_k, PlateHole.apogee_target1,
-                          PlateHole.apogee_target2)
-
-       # SDSS-V plates
-       if (plate >= 15000):
-
-           # loop through the list and update the PLUGMAPOBJ
-           tmass_style = 'Unknown'
-           for fid, j_mag, h_mag, k_mag, t1, t2 in ph:
-               count = p0['PLUGMAPOBJ']['fiberId'].count(fid)
-               if count >= 1:
-                   # we have more than one entry for this fiberId -> get the APOGEE
-                   ind = -1
-                   for i in range(count):
-                       pos = p0['PLUGMAPOBJ']['fiberId'][ind+1:].index(fid)
-                       ind = pos+ind+1
-                       if p0['PLUGMAPOBJ']['spectrographId'][ind] == 2:
-                           break
-
-                   # print "fid=%d    t1=%d   t2=%d" % (fid,t1,t2)
-                   # only modify the fibers for APOGEE (2) that are not sky fibers
-                   if p0['PLUGMAPOBJ']['spectrographId'][ind] == 2 and p0['PLUGMAPOBJ']['objType'][ind] != 'SKY':
-                       if not (j_mag and h_mag and k_mag):
-                           #cmd.warn('text="some IR mags are bad: j=%s h=%s k=%s"' % (j_mag, h_mag, k_mag))
-                           logging.warn('text="some IR mags are bad: j=%s h=%s k=%s"' % (j_mag, h_mag, k_mag))
-                       p0['PLUGMAPOBJ']['mag'][ind][0] = j_mag if j_mag else 0.0
-                       p0['PLUGMAPOBJ']['mag'][ind][1] = h_mag if h_mag else 0.0
-                       p0['PLUGMAPOBJ']['mag'][ind][2] = k_mag if k_mag else 0.0
-                       p0['PLUGMAPOBJ']['tmass_style'][ind] = tmass_style
-                       if (p0['PLUGMAPOBJ']['objType'][ind] == 'STAR_BHB'):
-                           p0['PLUGMAPOBJ']['objType'][ind] = 'STAR'
-                       elif (p0['PLUGMAPOBJ']['objType'][ind] == 'SPECTROPHOTO_STD'):
-                           p0['PLUGMAPOBJ']['objType'][ind] = 'HOT_STD'
-
-       # APOGEE-1/2 plates
-       else:
-
-           # we'll use the target1 and target2 to define the type of target
-           # these are 32 bits each with each bit indicating a type
-           skymask = 16
-           hotmask = 512
-           extmask = 1024
-           starmask = skymask | hotmask
-
-           # loop through the list and update the PLUGMAPOBJ
-           tmass_style = 'Unknown'
-           for fid, j_mag, h_mag, k_mag, t1, t2 in ph:
-               count = p0['PLUGMAPOBJ']['fiberId'].count(fid)
-               if count >= 1:
-                   # we have more than one entry for this fiberId -> get the APOGEE
-                   ind = -1
-                   for i in range(count):
-                       pos = p0['PLUGMAPOBJ']['fiberId'][ind+1:].index(fid)
-                       ind = pos+ind+1
-                       if p0['PLUGMAPOBJ']['spectrographId'][ind] == 2:
-                           break
-
-                   # print "fid=%d    t1=%d   t2=%d" % (fid,t1,t2)
-                   # only modify the fibers for APOGEE (2) that are not sky fibers
-                   if p0['PLUGMAPOBJ']['spectrographId'][ind] == 2 and p0['PLUGMAPOBJ']['objType'][ind] != 'SKY':
-                       if not (j_mag and h_mag and k_mag):
-                           #cmd.warn('text="some IR mags are bad: j=%s h=%s k=%s"' % (j_mag, h_mag, k_mag))
-                           logging.warn('text="some IR mags are bad: j=%s h=%s k=%s"' % (j_mag, h_mag, k_mag))
-                       p0['PLUGMAPOBJ']['mag'][ind][0] = j_mag if j_mag else 0.0
-                       p0['PLUGMAPOBJ']['mag'][ind][1] = h_mag if h_mag else 0.0
-                       p0['PLUGMAPOBJ']['mag'][ind][2] = k_mag if k_mag else 0.0
-                       p0['PLUGMAPOBJ']['tmass_style'][ind] = tmass_style
-                       if (t2 & skymask) > 0:
-                           p0['PLUGMAPOBJ']['objType'][ind] = 'SKY'
-                       elif (t2 & hotmask) > 0:
-                           p0['PLUGMAPOBJ']['objType'][ind] = 'HOT_STD'
-                       elif (t1 & extmask) > 0:
-                           p0['PLUGMAPOBJ']['objType'][ind] = 'EXTOBJ'
-                       elif (t2 & starmask) == 0 and (t1 & extmask) ==0:
-                           p0['PLUGMAPOBJ']['objType'][ind] = 'STAR'
-
-       # delete file if it already exists
-       if os.path.isfile(newfilename):
-          os.remove(newfilename)
-
-       p0.write(newfilename)
-
-       # write a copy to the archive directory
-       # define the current mjd archive directory to store the plPlugMapA file
-       mjd = astroMJD.mjdFromPyTuple(time.gmtime())
-       fmjd = str(int(mjd + 0.3))
-       arch_dir = os.path.join(self.archive_dir, fmjd)
-       if not os.path.isdir(arch_dir):
-           os.mkdir(arch_dir, 0o0775)
-
-       res=os.path.split(newfilename)
-       archivefile = os.path.join(arch_dir,res[1])
-       p0.write(archivefile)
-
-       return
 
    def getShutterState(self):
        """ Get APOGEE shutter state."""
