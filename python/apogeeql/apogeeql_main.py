@@ -45,7 +45,8 @@ import datetime
 from peewee import PostgresqlDatabase, Model
 from peewee import AutoField, BigIntegerField, TextField, DateTimeField, FloatField, IntegerField
 
-database = PostgresqlDatabase('sdss5db', user='sdss', host='10.25.1.130')
+database = PostgresqlDatabase('sdss5db', user='sdss', host='sdss5-db')
+#database = PostgresqlDatabase('sdss5db', user='sdss', host='10.25.1.130')
 database.connect()
 
 
