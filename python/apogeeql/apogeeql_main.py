@@ -274,13 +274,16 @@ class Apogeeql(actorcore.Actor.Actor):
       #
       self.models = {}
       # for actor in ["mcp", "guider", "platedb", "tcc", "apo", "apogeetest"]:
-      for actor in ["mcp", "guider", "cherno", "platedb", "tcc", "apogee", "apogeecal", "hal", "jaeger"]:
+      observatory = os.getenv("OBSERVATORY")
+      if observatory == "APO" : tcc = "tcc"
+      else : tcc = "lcotcc"
+      for actor in ["mcp", "guider", "cherno", "platedb", tcc, "apogee", "apogeecal", "hal", "jaeger"]:
          self.models[actor] = opscore.actor.model.Model(actor)
 
       #
       # register the keywords that we want to pay attention to
       #
-      self.models["tcc"].keyVarDict["inst"].addCallback(self.TCCInstCB, callNow=False)
+      self.models[tcc].keyVarDict["inst"].addCallback(self.TCCInstCB, callNow=False)
       #self.models["platedb"].keyVarDict["pointingInfo"].addCallback(self.PointingInfoCB, callNow=True)
       self.models["apogee"].keyVarDict["exposureState"].addCallback(self.ExposureStateCB, callNow=False)
       self.models["apogee"].keyVarDict["exposureWroteFile"].addCallback(self.exposureWroteFileCB, callNow=False)
@@ -899,7 +902,10 @@ class Apogeeql(actorcore.Actor.Actor):
 
       cards=[]
       cards.extend(actorFits.mcpCards(self.models, cmd=self.bcast))
-      cards.extend(actorFits.tccCards(self.models, cmd=self.bcast))
+      if observatory == "APO" : 
+          cards.extend(actorFits.tccCards(self.models, cmd=self.bcast))
+      else :
+          cards.extend(actorFits.lcoTCCCards(self.models, cmd=self.bcast))
       cards.extend(actorFits.plateCards(self.models, cmd=self.bcast))
 
       for name, val, comment in cards:
