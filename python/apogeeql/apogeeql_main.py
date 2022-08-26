@@ -902,6 +902,7 @@ class Apogeeql(actorcore.Actor.Actor):
 
       cards=[]
       cards.extend(actorFits.mcpCards(self.models, cmd=self.bcast))
+      observatory = os.getenv("OBSERVATORY")
       if observatory == "APO" : 
           cards.extend(actorFits.tccCards(self.models, cmd=self.bcast))
       else :
