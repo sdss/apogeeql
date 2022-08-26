@@ -902,12 +902,27 @@ class Apogeeql(actorcore.Actor.Actor):
 
       cards=[]
       cards.extend(actorFits.mcpCards(self.models, cmd=self.bcast))
+
       observatory = os.getenv("OBSERVATORY")
-      if observatory == "APO" : 
+      if observatory == "APO" :
           cards.extend(actorFits.tccCards(self.models, cmd=self.bcast))
       else :
           cards.extend(actorFits.lcoTCCCards(self.models, cmd=self.bcast))
+
       cards.extend(actorFits.plateCards(self.models, cmd=self.bcast))
+
+      # Get the guider (cherno) offsets.
+      default_offset = Apogeeql.actor.models['cherno'].keyVarDict['default_offset']
+      offset = Apogeeql.actor.models['cherno'].keyVarDict['offset']
+      for idx, name in enumerate(['RA', 'DEC', 'PA']):
+         default_ax = default_offset[idx]
+         offset_ax = offset[idx]
+         if (default_ax is None or offset_ax is None or
+               float(default_ax) == -999.0 or float(offset_ax) == -999.0):
+            full_offset = -999.0
+         else:
+            full_offset = float(default_ax) + float(offset_ax)
+         cards.append(('OFF'+name, full_offset, 'Guider offset in '+name))
 
       for name, val, comment in cards:
           try:
