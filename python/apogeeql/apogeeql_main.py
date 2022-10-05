@@ -8,13 +8,13 @@ import time
 import datetime
 
 from astropy.time import Time
-import pyfits
+from astropy.io import fits as pyfits
 
 from apogee_mountain.quicklookThread import do_quickred, do_quicklook
 from apogee_mountain.bundleThread import do_bundle
-from sdssdb.sdss5db.targetdb import Exposure
-from clu.actor import LegacyActor
-import clu.Command
+from sdssdb.peewee.sdss5db.opsdb import Exposure
+from clu import LegacyActor
+import clu.command
 import actorcore.utility.fits as actorFits
 
 from apogeeql import __version__, log, config
@@ -35,7 +35,7 @@ class Apogeeql(LegacyActor):
 
     parser = apogeeql_parser
 
-    async def __init__(self, **kwargs):
+    def __init__(self, **kwargs):
         observatory = os.getenv("OBSERVATORY")
 
         if observatory == "APO":
@@ -51,6 +51,19 @@ class Apogeeql(LegacyActor):
                          port=config["tron"]["port"],
                          version=__version__,
                          **kwargs)
+
+        #
+        # register the keywords that we want to pay attention to
+        #
+        # if observatory == "APO":
+        #     self.models["tcc"]["inst"].register_callback(self.TCCInstCB)
+        # else:
+        #     self.models["lcotcc"]["inst"].register_callback(self.TCCInstCB)
+        # self.models["apogee"]["exposureState"].register_callback(self.ExposureStateCB)
+        # self.models["apogee"]["exposureWroteFile"].register_callback(self.exposureWroteFileCB)
+        # self.models["apogee"]["exposureWroteSummary"].register_callback(self.exposureWroteSummaryCB)
+        # self.models["apogee"]["ditherPosition"].register_callback(self.ditherPositionCB)
+        # self.models["jaeger"]["configuration_loaded"].register_callback(self.configurationLoadedCB)
 
         # only the ics_datadir is defined in the cfg file - expect the datadir to be an
         # environment variable set by the apgquicklook setup
@@ -68,30 +81,22 @@ class Apogeeql(LegacyActor):
             log.error("Failed: APQLARCHIVE_DIR is not defined")
             traceback.print_exc()
 
-        # MJD value of start of survey (Jan 1 2011) for filenames (55562)
-        self.startOfSurvey = self.config.get('apogeeql','startOfSurvey')
-        self.snrAxisRange = [self.config.get('apogeeql','snrAxisMin'), self.config.get('apogeeql','snrAxisMax')]
-        self.rootURL = self.config.get('apogeeql','rootURL')
-        self.plugmap_dir = self.config.get('apogeeql','plugmap_dir')
-        self.ics_datadir = self.config.get('apogeeql','ics_datadir')
-        self.cdr_dir = self.config.get('apogeeql','cdr_dir')
-        self.summary_dir = self.config.get('apogeeql','summary_dir')
-        self.delFile = self.config.get('apogeeql','delFile')
-        self.criticalDiskSpace = self.config.get('apogeeql', 'criticalDiskSpace')
-        self.seriousDiskSpace = self.config.get('apogeeql', 'seriousDiskSpace')
-        self.warningDiskSpace = self.config.get('apogeeql', 'warningDiskSpace')
-        self.updateInterval = int(self.config.get('apogeeql', 'updateInterval'))
-        self.diskAlarmInterval = int(self.config.get('apogeeql', 'diskAlarmInterval'))
+        self.qlconfig = config["apogeeql"]
 
-        #
-        # register the keywords that we want to pay attention to
-        #
-        self.models[tcc]["inst"].register_callback(self.TCCInstCB)
-        self.models["apogee"]["exposureState"].register_callback(self.ExposureStateCB)
-        self.models["apogee"]["exposureWroteFile"].register_callback(self.exposureWroteFileCB)
-        self.models["apogee"]["exposureWroteSummary"].register_callback(self.exposureWroteSummaryCB)
-        self.models["apogee"]["ditherPosition"].register_callback(self.ditherPositionCB)
-        self.models["jaeger"]["configuration_loaded"].register_callback(self.configurationLoadedCB)
+        # MJD value of start of survey (Jan 1 2011) for filenames (55562)
+        self.startOfSurvey = self.qlconfig.get('startOfSurvey')
+        self.snrAxisRange = [self.qlconfig.get('snrAxisMin'), self.qlconfig.get('snrAxisMax')]
+        self.rootURL = self.qlconfig.get('rootURL')
+        self.plugmap_dir = self.qlconfig.get('plugmap_dir')
+        self.ics_datadir = self.qlconfig.get('ics_datadir')
+        self.cdr_dir = self.qlconfig.get('cdr_dir')
+        self.summary_dir = self.qlconfig.get('summary_dir')
+        self.delFile = self.qlconfig.get('delFile')
+        self.criticalDiskSpace = self.qlconfig.get('criticalDiskSpace')
+        self.seriousDiskSpace = self.qlconfig.get('seriousDiskSpace')
+        self.warningDiskSpace = self.qlconfig.get('warningDiskSpace')
+        self.updateInterval = int(self.qlconfig.get('updateInterval'))
+        self.diskAlarmInterval = int(self.qlconfig.get('diskAlarmInterval'))
 
         self.prevCartridge=-1
         self.prevPlate = None
@@ -116,6 +121,19 @@ class Apogeeql(LegacyActor):
 
         self.statusTimer = Timer()
         self.diskTimer = Timer()
+
+    async def start(self):
+        await super().start()
+
+        if observatory == "APO":
+            self.models["tcc"]["inst"].register_callback(self.TCCInstCB)
+        else:
+            self.models["lcotcc"]["inst"].register_callback(self.TCCInstCB)
+        self.models["apogee"]["exposureState"].register_callback(self.ExposureStateCB)
+        self.models["apogee"]["exposureWroteFile"].register_callback(self.exposureWroteFileCB)
+        self.models["apogee"]["exposureWroteSummary"].register_callback(self.exposureWroteSummaryCB)
+        self.models["apogee"]["ditherPosition"].register_callback(self.ditherPositionCB)
+        self.models["jaeger"]["configuration_loaded"].register_callback(self.configurationLoadedCB)
 
         await self.periodicStatus()
         await self.periodicDisksStatus()
@@ -407,7 +425,7 @@ class Apogeeql(LegacyActor):
         # self.callCommand('update')
         # reactor.callLater(int(self.config.get(self.name, 'updateInterval')), self.periodicStatus)
 
-        await clu.Command('status').parse()
+        await clu.command('status').parse()
 
         await self.statusTimer.start(self.updateInterval, self.periodicStatus)
 
@@ -416,7 +434,7 @@ class Apogeeql(LegacyActor):
         # self.callCommand('checkdisks')
         # reactor.callLater(int(self.config.get(self.name, 'diskAlarmInterval')), self.periodicDisksStatus)
 
-        await clu.Command('checkdisks').parse()
+        await clu.command('checkdisks').parse()
 
         self.diskTimer.start(self.diskAlarmInterval, periodicDisksStatus)
 

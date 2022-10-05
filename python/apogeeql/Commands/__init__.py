@@ -6,7 +6,7 @@ import os
 import click
 
 from clu.parsers.click import CluGroup, get_schema, help_, keyword, ping, version
-import clu.Command
+import clu.command
 
 from apogeeql.tools import wrapBlocking
 
@@ -34,7 +34,7 @@ parser.add_command(help_)
 @parser.command()
 async def status(command):
     '''Report status and version; obtain and send current data'''
-    await clu.Command(version, parent=command).parse()
+    await clu.command(version, parent=command).parse()
 
     actor = command.actor
 
@@ -46,8 +46,8 @@ async def status(command):
 
 @parser.command()
 async def update(command):
-      '''Report status'''
-    await clu.Command(status, parent=command).parse()
+    '''Report status'''
+    await clu.command(status, parent=command).parse()
     return command.finish()
 
 @parser.command()
@@ -73,30 +73,30 @@ async def checkDisks(command):
 
 @parser.command()
 async def stopidl(command):
-      '''Report status'''
+    '''Report status'''
     command.write(message_code="e", message={"text": "deprecated"})
     return command.fail()
 
 @parser.command()
 async def startidl(command):
-      '''Report status'''
+    '''Report status'''
     command.write(message_code="e", message={"text": "deprecated"})
     return command.fail()
 
 @parser.command()
 async def ql(command):
-      '''Report status'''
+    '''Report status'''
     command.write(message_code="e", message={"text": "deprecated"})
     return command.fail()
 
 @parser.command()
 async def doSomething(command):
-      '''Report status'''
+    '''Report status'''
     command.write(message_code="e", message={"text": "deprecated"})
     return command.fail()
 
 @parser.command()
 async def passAlong(command):
-      '''Report status'''
+    '''Report status'''
     command.write(message_code="e", message={"text": "deprecated"})
     return command.fail()
