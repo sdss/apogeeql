@@ -17,7 +17,7 @@ from clu.actor import LegacyActor
 import clu.Command
 import actorcore.utility.fits as actorFits
 
-from apogeeql import __version__, log
+from apogeeql import __version__, log, config
 from apogeeql.tools import wrapBlocking, Timer
 from apogeeql.Commands import parser as apogeeql_parser
 
@@ -47,9 +47,10 @@ class Apogeeql(LegacyActor):
         super().__init__(name="apogeeql",
                          models=monitoredActors,
                          log=log,
+                         host=config["tron"]["tronHost"],
+                         port=config["tron"]["port"],
+                         version=__version__,
                          **kwargs)
-
-        self.version = __version__
 
         # only the ics_datadir is defined in the cfg file - expect the datadir to be an
         # environment variable set by the apgquicklook setup
