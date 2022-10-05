@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+#
 
 import traceback
 import os, shutil, glob
@@ -12,10 +14,12 @@ from apogee_mountain.quicklookThread import do_quickred, do_quicklook
 from apogee_mountain.bundleThread import do_bundle
 from sdssdb.sdss5db.targetdb import Exposure
 from clu.actor import LegacyActor
+import clu.Command
 import actorcore.utility.fits as actorFits
 
 from apogeeql import __version__, log
 from apogeeql.tools import wrapBlocking, Timer
+from apogeeql.Commands import parser as apogeeql_parser
 
 
 def writeExposure(params):
@@ -28,6 +32,8 @@ def writeExposure(params):
 
 
 class Apogeeql(LegacyActor):
+
+    parser = apogeeql_parser
 
     async def __init__(self, **kwargs):
         observatory = os.getenv("OBSERVATORY")
