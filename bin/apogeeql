@@ -3,7 +3,6 @@
 #
 
 import asyncio
-import click
 from apogeeql.apogeeql_main import Apogeeql
 
 

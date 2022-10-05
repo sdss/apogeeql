@@ -1,3 +1,6 @@
+10/04/2022
+John Donor removed a bunch of old scripts. Git keeps history if you want them.
+
 09/11/2013
 I created this file to list the programs and  supporting files in this
 directory and place a very short description of them. 
