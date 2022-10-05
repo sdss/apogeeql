@@ -216,7 +216,7 @@ class Apogeeql(LegacyActor):
                 self.expType = keyVar[1].upper()
                 filebase = keyVar[3]
                 # make sure we have all the UTR files before bundling
-                await wrapBlocking(self.completeUTR, self, filebase)
+                await wrapBlocking(self.completeUTR, filebase)
                 self.numReadsCommanded = 0
                 res = keyVar[3].split('-')
                 self.frameid = res[1][:8]
@@ -225,7 +225,7 @@ class Apogeeql(LegacyActor):
                 args = ('UTRDONE', self.actor, self.frameid, mjd5, self.exp_pk)
                 await wrapBlocking(do_quickred, args, self.summary_file,
                                                 self.rawdir, self.namedDitherPos)
-                await wrapBlocking(do_bundle, self.frameid, mjd5, self.exp_pk)
+                await wrapBlocking(do_bundle, "BUNDLE", self.frameid, mjd5, self.exp_pk)
                 # Apogeeql.actor.ql_in_queue.put(('UTRDONE',Apogeeql.actor,Apogeeql.frameid, mjd5, Apogeeql.exp_pk),block=True)
                 # Apogeeql.actor.bndl_in_queue.put(('BUNDLE',Apogeeql.frameid, mjd5, Apogeeql.exp_pk),block=True)
 
@@ -264,7 +264,7 @@ class Apogeeql(LegacyActor):
 
         # create a new FITS file by appending the telescope fits keywords
         newfilename, starttime, exptime = await wrapBlocking(self.appendFitsKeywords,
-                                                             self, filename)
+                                                             filename)
 
         #Don't create a new exposure if the exposure is not an APOGEE or MANGA object
         #if self.prevPlate == -1:
@@ -340,8 +340,8 @@ class Apogeeql(LegacyActor):
                  log.error('Exception: %s'%e)
                  raise RuntimeError('Failed in call addExposure for exposureNo %d' %expnum +'\n'+str(e))
 
-        await wrapBlocking(do_quicklook, self, newfilename, self.exp_pk, readnum,
-                                         self.numReadsCommanded, self.summary_file)
+        args = ('UTR', self, newfilename, self.exp_pk, readnum, self.numReadsCommanded)
+        await wrapBlocking(do_quicklook, args, self.summary_file)
 
         # Apogeeql.actor.ql_in_queue.put(('UTR', self.actor, newfilename, self.exp_pk, readnum, self.numReadsCommanded),block=True)
 
@@ -363,11 +363,11 @@ class Apogeeql(LegacyActor):
         # if not keyVar.isGenuine:
         #     return
 
-        filename=keyVar[0]
-        res=(filename.split('-'))[1].split('.')
+        filename = keyVar[0]
+        res = (filename.split('-'))[1].split('.')
         dayOfSurvey = res[0][:4]
         mjd = int(dayOfSurvey) + int(self.startOfSurvey)
-        indir=self.summary_dir
+        indir = self.summary_dir
         outdir = self.cdr_dir
 
         try:
@@ -394,8 +394,8 @@ class Apogeeql(LegacyActor):
         
         keyVar = model_property.value
 
-        if not keyVar.isGenuine:
-            return
+        # if not keyVar.isGenuine:
+        #     return
 
         # save the current dither pixel and named position
         self.ditherPos = float(keyVar[0])
@@ -598,45 +598,45 @@ class Apogeeql(LegacyActor):
         return outFile, starttime, exptime
 
     def getShutterState(self):
-         """ Get APOGEE shutter state."""
+        """ Get APOGEE shutter state."""
 
-         # add shutter information
-         # shutterLimitSwitch=False,True   shutter is closed
-         # shutterLimitSwitch=True,False   shutter is open
-         # Any other combination means there's something wrong with the shutter.
+        # add shutter information
+        # shutterLimitSwitch=False,True   shutter is closed
+        # shutterLimitSwitch=True,False   shutter is open
+        # Any other combination means there's something wrong with the shutter.
 
-         # get the shutter status from the actor
-         shutterinfo = self.models['apogee'].keyVarDict['shutterLimitSwitch']
-         if tuple(shutterinfo) == (False,True):
-              shutterstate = 'Closed'
-         elif tuple(shutterinfo) == (True,False):
-              shutterstate = 'Open'
-         else:
-              shutterstate = 'Unknown'
+        # get the shutter status from the actor
+        shutterinfo = self.models['apogee'].keyVarDict['shutterLimitSwitch']
+        if tuple(shutterinfo) == (False,True):
+          shutterstate = 'Closed'
+        elif tuple(shutterinfo) == (True,False):
+          shutterstate = 'Open'
+        else:
+          shutterstate = 'Unknown'
 
-         print('shutterinfo = ',shutterinfo)
-         print('shutterstate = ',shutterstate)
+        print('shutterinfo = ',shutterinfo)
+        print('shutterstate = ',shutterstate)
 
-         return shutterstate
+        return shutterstate
 
     def getGangState(self):
-         """ Get APOGEE gang connector state."""
+        """ Get APOGEE gang connector state."""
 
-         # get the lamp status from the actor
-         gangstate = self.models['mcp'].keyVarDict['apogeeGang'][0]
-         gstate = 'Podium'
-         if str(gangstate)=='17' or str(gangstate)=='18':
-              gstate = 'FPS'
+        # get the lamp status from the actor
+        gangstate = self.models['mcp'].keyVarDict['apogeeGang'][0]
+        gstate = 'Podium'
+        if str(gangstate)=='17' or str(gangstate)=='18':
+          gstate = 'FPS'
 
-         # Key('apogeeGang',
-         # Enum('0', '1', '17', '4', '12', '20', '28',
-         #      labelHelp=('Unknown', 'Disconnected', 'At Cart', 'Podium?',
-         #                 'Podium: dense', 'Podium + FPI', 'Podium dense + FPI'))),
+        # Key('apogeeGang',
+        # Enum('0', '1', '17', '4', '12', '20', '28',
+        #      labelHelp=('Unknown', 'Disconnected', 'At Cart', 'Podium?',
+        #                 'Podium: dense', 'Podium + FPI', 'Podium dense + FPI'))),
 
-         print('gangstate = ',gangstate)
-         print('gstate = ',gstate)
+        print('gangstate = ',gangstate)
+        print('gstate = ',gstate)
 
-         return gangstate, gstate
+        return gangstate, gstate
 
     def getCalibBoxStatus(self):
          """Insert a new row in the platedb.exposure table """
@@ -651,40 +651,40 @@ class Apogeeql(LegacyActor):
          return lampqrtz, lampune, lampthar, lampshtr, lampcntl
 
     def completeUTR(self, filebase=None):
-         """Verifies that all of the UTR files where copied from the ICS"""
+        """Verifies that all of the UTR files where copied from the ICS"""
 
-         # expecting something like: apRaw-DDDDXXXX
-         # make sure a filebase was passed
-         if not filebase:
-              return
+        # expecting something like: apRaw-DDDDXXXX
+        # make sure a filebase was passed
+        if not filebase:
+          return
 
-         res=filebase.split('-')
-         try:
-             indir  = os.path.join(self.ics_datadir,res[1][:4])
-             mjd = int(res[1][:4])+int(self.startOfSurvey)
-             outdir = os.path.join(self.datadir,str(mjd))
-         except:
-             raise RuntimeError( "The filename doesn't match expected format (%s)" % (filename))
+        res=filebase.split('-')
+        try:
+            indir  = os.path.join(self.ics_datadir,res[1][:4])
+            mjd = int(res[1][:4])+int(self.startOfSurvey)
+            outdir = os.path.join(self.datadir,str(mjd))
+        except:
+            raise RuntimeError( "The filename doesn't match expected format (%s)" % (filename))
 
-         lst = glob.glob(os.path.join(indir,filebase+'*.fits'))
-         lst.sort()
-         count=0
-         for infile in lst:
-              # check that the file exists in the outdir
-              outfile = os.path.join(outdir,os.path.basename(infile))
-              if not os.path.exists(outfile):
-                    # need to annotate and copy the file
-                    count+=1
-                    # should we try this or just make a copy without the annotation?
-                    newfilename, starttime, exptime = self.appendFitsKeywords(os.path.basename(infile))
-                    if not os.path.exists(outfile):
-                         # copy the file if appendFitsKeywords did not work
-                         shutil.copy(infile,outdir)
+        lst = glob.glob(os.path.join(indir,filebase+'*.fits'))
+        lst.sort()
+        count=0
+        for infile in lst:
+            # check that the file exists in the outdir
+            outfile = os.path.join(outdir,os.path.basename(infile))
+            if not os.path.exists(outfile):
+                # need to annotate and copy the file
+                count+=1
+                # should we try this or just make a copy without the annotation?
+                newfilename, starttime, exptime = self.appendFitsKeywords(os.path.basename(infile))
+                if not os.path.exists(outfile):
+                    # copy the file if appendFitsKeywords did not work
+                    shutil.copy(infile, outdir)
 
-         if count > 0:
-              self.bcast.warn('text="%s had %d missing UTR"' % (filebase,count))
-              log.info('APOGEEQL -> had %d missing UTR' % (count))
-         return
+        if count > 0:
+            self.write(message_code="w", message={'text': f"{filebase} had {count} missing UTR"})
+            log.info(f'APOGEEQL -> had {count} missing UTR')
+        return
 
 #-------------------------------------------------------------
 if __name__ == '__main__':
