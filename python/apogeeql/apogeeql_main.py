@@ -259,7 +259,7 @@ class Apogeeql(LegacyActor):
             return
 
         if len(filename) == 0:
-            print "exposureWroteFileCB  -> Null filename received"
+            print("exposureWroteFileCB  -> Null filename received")
             return
 
         # create a new FITS file by appending the telescope fits keywords

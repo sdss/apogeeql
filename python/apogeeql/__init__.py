@@ -1,3 +1,5 @@
+import os
+import yaml
 from sdsstools import get_logger
 
 log = get_logger('apogeeql')
