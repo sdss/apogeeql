@@ -14,7 +14,8 @@ from sdssdb.sdss5db.targetdb import Exposure
 from clu.actor import LegacyActor
 import actorcore.utility.fits as actorFits
 
-from apogeeql import __version__, log, wrapBlocking
+from apogeeql import __version__, log
+from apogeeql.tools import wrapBlocking, Timer
 
 
 def writeExposure(params):
@@ -28,30 +29,6 @@ def writeExposure(params):
 
 class Apogeeql(LegacyActor):
 
-    models = {}
-    prevCartridge=-1
-    prevPlate = None
-    prevScanMJD = -1
-    prevPointing='A'
-    config_id = None
-    design_id = None
-    field_id = None
-    summary_file = ''
-    inst = ''
-    startExp = False
-    endExp = False
-    expState=''
-    expType=''
-    numReadsCommanded=0
-    actor=''
-    exp_pk = 0
-    cdr_dir = ''
-    summary_dir = ''
-    frameid = ''
-    ditherPos = 0.0
-    namedDitherPos = ''
-    rawdir = '/data/apogee/raw/'
-
     async def __init__(self, **kwargs):
         observatory = os.getenv("OBSERVATORY")
 
@@ -62,9 +39,9 @@ class Apogeeql(LegacyActor):
         monitoredActors = ["mcp", "guider", "cherno", tcc, "apogee", "apogeecal", "hal", "jaeger"]
 
         super().__init__(name="apogeeql",
-                              models=monitoredActors,
-                              log=log,
-                              **kwargs)
+                         models=monitoredActors,
+                         log=log,
+                         **kwargs)
 
         self.version = __version__
 
@@ -96,26 +73,52 @@ class Apogeeql(LegacyActor):
         self.criticalDiskSpace = self.config.get('apogeeql', 'criticalDiskSpace')
         self.seriousDiskSpace = self.config.get('apogeeql', 'seriousDiskSpace')
         self.warningDiskSpace = self.config.get('apogeeql', 'warningDiskSpace')
+        self.updateInterval = int(self.config.get('apogeeql', 'updateInterval'))
+        self.diskAlarmInterval = int(self.config.get('apogeeql', 'diskAlarmInterval'))
 
         #
         # register the keywords that we want to pay attention to
         #
-        self.models[tcc].keyVarDict["inst"].addCallback(self.TCCInstCB, callNow=False)
-        self.models["apogee"].keyVarDict["exposureState"].addCallback(self.ExposureStateCB, callNow=False)
-        self.models["apogee"].keyVarDict["exposureWroteFile"].addCallback(self.exposureWroteFileCB, callNow=False)
-        self.models["apogee"].keyVarDict["exposureWroteSummary"].addCallback(self.exposureWroteSummaryCB, callNow=False)
-        self.models["apogee"].keyVarDict["ditherPosition"].addCallback(self.ditherPositionCB, callNow=False)
-        self.models["jaeger"].keyVarDict["configuration_loaded"].addCallback(self.configurationLoadedCB, callNow=True)
+        self.models[tcc]["inst"].register_callback(self.TCCInstCB)
+        self.models["apogee"]["exposureState"].register_callback(self.ExposureStateCB)
+        self.models["apogee"]["exposureWroteFile"].register_callback(self.exposureWroteFileCB)
+        self.models["apogee"]["exposureWroteSummary"].register_callback(self.exposureWroteSummaryCB)
+        self.models["apogee"]["ditherPosition"].register_callback(self.ditherPositionCB)
+        self.models["jaeger"]["configuration_loaded"].register_callback(self.configurationLoadedCB)
 
-    @staticmethod
-    async def TCCInstCB(keyVar):
+        self.prevCartridge=-1
+        self.prevPlate = None
+        self.prevScanMJD = -1
+        self.prevPointing='A'
+        self.config_id = None
+        self.design_id = None
+        self.field_id = None
+        self.summary_file = ''
+        self.inst = ''
+        self.startExp = False
+        self.endExp = False
+        self.expState=''
+        self.expType=''
+        self.numReadsCommanded=0
+        self.actor=''
+        self.exp_pk = 0
+        self.frameid = ''
+        self.ditherPos = 0.0
+        self.namedDitherPos = ''
+        self.rawdir = '/data/apogee/raw/'
+
+        self.statusTimer = Timer()
+        self.diskTimer = Timer()
+
+        await self.periodicStatus()
+        await self.periodicDisksStatus()
+
+    async def TCCInstCB(self, model_property):
         '''callback routine for tcc.inst'''
+        keyVar = model_property.value
+        self.inst = keyVar[0]
 
-        # print 'TCCInstCB keyVar=',keyVar
-        Apogeeql.inst = keyVar[0]
-
-    @staticmethod
-    async def configurationLoadedCB(keyVar):
+    async def configurationLoadedCB(self, model_property):
         '''callback routine for jaeger.configuration_loaded'''
         # https://github.com/sdss/actorkeys/blob/58598b120b70693774d042eedcbd3a07461cd2fc/python/actorkeys/jaeger.py#L59
         # jaeger.configuration_loaded
@@ -132,6 +135,7 @@ class Apogeeql(LegacyActor):
         #   Float('az_boresight', help='Azimuth of the boresight pointing'),
         #   String('summary_file', help='Summary file path'))
 
+        keyVar = model_property.value
         print("configurationLoadedCB=",keyVar)
 
         # if pointing is None than just skip this
@@ -151,21 +155,20 @@ class Apogeeql(LegacyActor):
         #   summary_file = config_dir+summary_file
         # summary_file has the absolute path!
 
-        if config_id != Apogeeql.prevPlate:
+        if config_id != self.prevPlate:
             # pass the info to IDL QL
             # Apogeeql.actor.ql_in_queue.put(('configInfo', config_id, summary_file))
 
             # print 'plugMapFilename=%s' % (fname)
-            Apogeeql.config_id = config_id
-            Apogeeql.design_id = design_id
-            Apogeeql.field_id = field_id
-            Apogeeql.summary_file = summary_file
-            Apogeeql.prevPointing = config_id
-            Apogeeql.prevPlate = config_id
-            Apogeeql.prevCartridge = 'FPS'
+            self.config_id = config_id
+            self.design_id = design_id
+            self.field_id = field_id
+            self.summary_file = summary_file
+            self.prevPointing = config_id
+            self.prevPlate = config_id
+            self.prevCartridge = 'FPS'
 
-    @staticmethod
-    async def ExposureStateCB(keyVar):
+    async def ExposureStateCB(self, model_property):
         '''callback routine for apogeeICC.exposureState '''
         # exposureState expState expType nReads expName
         #
@@ -182,47 +185,49 @@ class Apogeeql(LegacyActor):
         # exposureState DONE SCIENCE 50 apRaw-0054003          -> mark end of exposure
         # test existance of passed variable
         # print 'ExposureStateCB keyVar=',keyVar
-        if not keyVar.isGenuine:
-            return
+        
+        keyVar = model_property.value
 
-        Apogeeql.expState=keyVar[0]
-        if Apogeeql.expState.upper() == 'EXPOSING':
+        # if not keyVar.isGenuine:
+        #     return
+
+        self.expState = keyVar[0]
+        if self.expState.upper() == 'EXPOSING':
             # check the communication to IDL quicklook
             # Apogeeql.startQuickLook(Apogeeql.actor)
-            Apogeeql.startExp = True
-            Apogeeql.startExp = True
-            Apogeeql.endExp = False
-            Apogeeql.expType = keyVar[1].upper()
-            Apogeeql.numReadsCommanded = int(keyVar[2])
+            self.startExp = True
+            self.startExp = True
+            self.endExp = False
+            self.expType = keyVar[1].upper()
+            self.numReadsCommanded = int(keyVar[2])
             # we may have to do something special for QL at the start of a new exposure
-        elif Apogeeql.expState.upper() in ['DONE', 'STOPPED', 'FAILED']:
+        elif self.expState.upper() in ['DONE', 'STOPPED', 'FAILED']:
             # ignore if we weren't actually exposing
-            if Apogeeql.startExp == True:
-                Apogeeql.startExp = False
-                Apogeeql.endExp = True
-                Apogeeql.expType = keyVar[1].upper()
+            if self.startExp == True:
+                self.startExp = False
+                self.endExp = True
+                self.expType = keyVar[1].upper()
                 filebase = keyVar[3]
                 # make sure we have all the UTR files before bundling
-                await wrapBlocking(Apogeeql.completeUTR, Apogeeql.actor, filebase)
-                Apogeeql.numReadsCommanded = 0
+                await wrapBlocking(self.completeUTR, self, filebase)
+                self.numReadsCommanded = 0
                 res = keyVar[3].split('-')
-                Apogeeql.frameid = res[1][:8]
-                mjd5 = int(Apogeeql.frameid[:4]) + int(Apogeeql.actor.startOfSurvey)
+                self.frameid = res[1][:8]
+                mjd5 = int(self.frameid[:4]) + int(self.startOfSurvey)
 
-                args = ('UTRDONE', Apogeeql.actor, Apogeeql.frameid, mjd5, Apogeeql.exp_pk)
-                await wrapBlocking(do_quickred, args, Apogeeql.summary_file,
-                                                Apogeeql.rawdir, Apogeeql.namedDitherPos)
-                await wrapBlocking(do_bundle, Apogeeql.frameid, mjd5, Apogeeql.exp_pk)
+                args = ('UTRDONE', self.actor, self.frameid, mjd5, self.exp_pk)
+                await wrapBlocking(do_quickred, args, self.summary_file,
+                                                self.rawdir, self.namedDitherPos)
+                await wrapBlocking(do_bundle, self.frameid, mjd5, self.exp_pk)
                 # Apogeeql.actor.ql_in_queue.put(('UTRDONE',Apogeeql.actor,Apogeeql.frameid, mjd5, Apogeeql.exp_pk),block=True)
                 # Apogeeql.actor.bndl_in_queue.put(('BUNDLE',Apogeeql.frameid, mjd5, Apogeeql.exp_pk),block=True)
 
-        elif Apogeeql.expState.upper() != 'STOPPING':
+        elif self.expState.upper() != 'STOPPING':
             # when a stop was requested, a couple of images will still be coming in
             # only change the startExp in other cases
-            Apogeeql.startExp = False
+            self.startExp = False
 
-    @staticmethod
-    def exposureWroteFileCB(keyVar):
+    async def exposureWroteFileCB(self, model_property):
         '''callback routine for apogeeICC.exposureState '''
         # exposureWroteFile apRaw-0054003-001.fits   -> mark first UTR read
         # exposureWroteFile apRaw-0054003-002.fits   -> mark first UTR read
@@ -236,8 +241,11 @@ class Apogeeql(LegacyActor):
         # if we're not actually exposing than skip (we get these messages from the hub when
         # starting the apogeeql if apogee ics is already started)
         # print "exposureWroteFileCB=",keyVar
-        if not keyVar.isGenuine:
-            return
+        
+        keyVar = model_property.value
+
+        # if not keyVar.isGenuine:
+        #     return
 
         filename=keyVar[0]
         if filename == None:
@@ -248,11 +256,11 @@ class Apogeeql(LegacyActor):
             return
 
         # create a new FITS file by appending the telescope fits keywords
-        newfilename, starttime, exptime = await wrapBlocking(Apogeeql.appendFitsKeywords,
-                                                             Apogeeql.actor, filename)
+        newfilename, starttime, exptime = await wrapBlocking(self.appendFitsKeywords,
+                                                             self, filename)
 
         #Don't create a new exposure if the exposure is not an APOGEE or MANGA object
-        #if Apogeeql.prevPlate == -1:
+        #if self.prevPlate == -1:
         #   print "exposureWroteFileCB  -> Not an APOGEE/MANGA Object"
         #   return
         # COMMENTING THIS OUT. DLN 10/26/21
@@ -285,51 +293,52 @@ class Apogeeql(LegacyActor):
         # get the mjd from the filename
         res=filename.split('-')
         try:
-            mjd = int(res[1][:4]) + int(Apogeeql.actor.startOfSurvey)
+            mjd = int(res[1][:4]) + int(self.startOfSurvey)
             readnum = int(res[2].split('.')[0])
             expnum = int(res[1])
         except:
             raise RuntimeError( "The filename doesn't match expected format (%s)" % (filename))
 
-        if readnum == 1 or Apogeeql.exp_pk == 0:
+        if readnum == 1 or self.exp_pk == 0:
 
             #Create new exposure object
             #currently hard-coded for survey=APOGEE-2
 
-             #if Apogeeql.prevPlate > 15000:
+             #if self.prevPlate > 15000:
              #    surveyLabel = 'MWM'
              #else:
              #    surveyLabel = 'APOGEE-2'
              # surveyLabel = 'MWM'
 
              try:
-                 with database.atomic():
-                    # exposure_flavor "label" value for this exposure
-                    expflavorlabel = exptype2flavor.get(Apogeeql.expType)
-                    if expflavorlabel is None:
-                        expflavorlabel = 'Object'
-                    # get exposure_flavor_pk for this exposure
-                    expflavorpk = expflavordict.get(expflavorlabel)
-                    if expflavorpk is None:
-                         expflavorpk = 5  # Object by default
-                    print('exptype = ',Apogeeql.expType)
-                    print('expflavorpk = ',expflavorpk)
-                    # survey_pk=2 is for MWM
-                    params = {"configuration_id":Apogeeql.config_id, "exposure_no":expnum,
-                              "exposure_time":exptime, "exposure_flavor_pk":expflavorpk,
-                              "start_time":datetime.datetime.now(),"survey_pk":2}
-                    new_pk = await wrapBlocking(writeExposure, params)
-                    Apogeeql.exp_pk = new_pk
+                # exposure_flavor "label" value for this exposure
+                expflavorlabel = exptype2flavor.get(self.expType)
+                if expflavorlabel is None:
+                    expflavorlabel = 'Object'
+                # get exposure_flavor_pk for this exposure
+                expflavorpk = expflavordict.get(expflavorlabel)
+                if expflavorpk is None:
+                     expflavorpk = 5  # Object by default
+                print('exptype = ',self.expType)
+                print('expflavorpk = ',expflavorpk)
+                # survey_pk=2 is for MWM
+                params = {"configuration_id":self.config_id, "exposure_no":expnum,
+                          "exposure_time":exptime, "exposure_flavor_pk":expflavorpk,
+                          "start_time":datetime.datetime.now(),"survey_pk":2}
+                new_pk = await wrapBlocking(writeExposure, params)
+                self.exp_pk = new_pk
 
              except RuntimeError as e:
                  log.error('Failed in call addExposure for exposureNo %d' %expnum)
                  log.error('Exception: %s'%e)
                  raise RuntimeError('Failed in call addExposure for exposureNo %d' %expnum +'\n'+str(e))
 
-        Apogeeql.actor.ql_in_queue.put(('UTR', Apogeeql.actor, newfilename, Apogeeql.exp_pk, readnum, Apogeeql.numReadsCommanded),block=True)
+        await wrapBlocking(do_quicklook, self, newfilename, self.exp_pk, readnum,
+                                         self.numReadsCommanded, self.summary_file)
 
-    @staticmethod
-    async def exposureWroteSummaryCB(keyVar):
+        # Apogeeql.actor.ql_in_queue.put(('UTR', self.actor, newfilename, self.exp_pk, readnum, self.numReadsCommanded),block=True)
+
+    async def exposureWroteSummaryCB(self, model_property):
 
         '''callback routine for apogeeICC.exposureWroteSummary '''
         # exposureWroteFile apRaw-0054003-001.fits   -> mark first UTR read
@@ -341,15 +350,18 @@ class Apogeeql(LegacyActor):
         # exposureState DONE SCIENCE 50 apRaw-0054003          -> mark end of exposure
         # test existance of passed variable
         # print "exposureWroteSummaryCB=",keyVar
-        if not keyVar.isGenuine:
-            return
+
+        keyVar = model_property.value
+
+        # if not keyVar.isGenuine:
+        #     return
 
         filename=keyVar[0]
         res=(filename.split('-'))[1].split('.')
         dayOfSurvey = res[0][:4]
-        mjd = int(dayOfSurvey) + int(Apogeeql.actor.startOfSurvey)
-        indir=Apogeeql.actor.summary_dir
-        outdir = Apogeeql.actor.cdr_dir
+        mjd = int(dayOfSurvey) + int(self.startOfSurvey)
+        indir=self.summary_dir
+        outdir = self.cdr_dir
 
         try:
             indir  = os.path.join(indir, dayOfSurvey)
@@ -366,30 +378,40 @@ class Apogeeql(LegacyActor):
             #raise RuntimeError( "Failed to copy the summary file (%s)" % (filename))
             raise RuntimeError( "Failed to copy the summary file (%s -> %s)" % (infile,outfile))
 
-    @staticmethod
-    async def ditherPositionCB(keyVar):
+    async def ditherPositionCB(self, model_property):
 
         '''callback routine for apogeeICC.ditherPosition '''
         # ditherPosition=13.9977,A
         # test existance of passed variable
         # print "ditherPositionCB=",keyVar
+        
+        keyVar = model_property.value
+
         if not keyVar.isGenuine:
             return
 
         # save the current dither pixel and named position
-        Apogeeql.ditherPos = float(keyVar[0])
-        Apogeeql.namedDitherPos = keyVar[1]
+        self.ditherPos = float(keyVar[0])
+        self.namedDitherPos = keyVar[1]
         # Apogeeql.actor.ql_in_queue.put(('ditherPosition',Apogeeql.ditherPos, Apogeeql.namedDitherPos),block=True)
 
-    def periodicStatus(self):
+    async def periodicStatus(self):
         '''Run some command periodically'''
-        self.callCommand('update')
-        reactor.callLater(int(self.config.get(self.name, 'updateInterval')), self.periodicStatus)
+        # self.callCommand('update')
+        # reactor.callLater(int(self.config.get(self.name, 'updateInterval')), self.periodicStatus)
 
-    def periodicDisksStatus(self):
+        await clu.Command('status').parse()
+
+        await self.statusTimer.start(self.updateInterval, self.periodicStatus)
+
+    async def periodicDisksStatus(self):
         '''Check on the disk free space '''
-        self.callCommand('checkdisks')
-        reactor.callLater(int(self.config.get(self.name, 'diskAlarmInterval')), self.periodicDisksStatus)
+        # self.callCommand('checkdisks')
+        # reactor.callLater(int(self.config.get(self.name, 'diskAlarmInterval')), self.periodicDisksStatus)
+
+        await clu.Command('checkdisks').parse()
+
+        self.diskTimer.start(self.diskAlarmInterval, periodicDisksStatus)
 
     def appendFitsKeywords(self, filename):
         '''make a copy of the input FITS file with added keywords'''
@@ -407,8 +429,8 @@ class Apogeeql(LegacyActor):
         # The directories from the ICS are named from the day-of-survey 4 digits
         # The directories for the quicklook and archive are by the 5 digits MJD
         #
-        res=filename.split('-')
-        indir=self.ics_datadir
+        res = filename.split('-')
+        indir = self.ics_datadir
         outdir = self.datadir
 
         try:
@@ -457,7 +479,7 @@ class Apogeeql(LegacyActor):
                   log.error("CHECKSUM Failed for file %s" % (filename))
              else:
                   # log.info("CHECKSUM checked ok")
-                  f = open(os.path.join(outdir,Apogeeql.actor.delFile),'a')
+                  f = open(os.path.join(outdir, self.delFile),'a')
                   f.write(filename+'\n')
                   f.close()
 
@@ -506,7 +528,7 @@ class Apogeeql(LegacyActor):
 
         # guider i seeing=2.09945
         #seeing = Apogeeql.actor.models['guider'].keyVarDict['seeing'][0]
-        seeing = Apogeeql.actor.models['cherno'].keyVarDict['astrometry_fit'][4]
+        seeing = self.models['cherno'].keyVarDict['astrometry_fit'][4]
         #print('cherno astrometry_fit: ',Apogeeql.actor.models['cherno'].keyVarDict['astrometry_fit'])
         #print('seeing: ',seeing)
         try:
@@ -535,8 +557,8 @@ class Apogeeql(LegacyActor):
         cards.extend(actorFits.plateCards(self.models, cmd=self.bcast))
 
         # Get the guider (cherno) offsets.
-        default_offset = Apogeeql.actor.models['cherno'].keyVarDict['default_offset']
-        offset = Apogeeql.actor.models['cherno'].keyVarDict['offset']
+        default_offset = self.models['cherno'].keyVarDict['default_offset']
+        offset = self.models['cherno'].keyVarDict['offset']
         for idx, name in enumerate(['RA', 'DEC', 'PA']):
             default_ax = default_offset[idx]
             offset_ax = offset[idx]
@@ -577,7 +599,7 @@ class Apogeeql(LegacyActor):
          # Any other combination means there's something wrong with the shutter.
 
          # get the shutter status from the actor
-         shutterinfo = Apogeeql.actor.models['apogee'].keyVarDict['shutterLimitSwitch']
+         shutterinfo = self.models['apogee'].keyVarDict['shutterLimitSwitch']
          if tuple(shutterinfo) == (False,True):
               shutterstate = 'Closed'
          elif tuple(shutterinfo) == (True,False):
@@ -594,7 +616,7 @@ class Apogeeql(LegacyActor):
          """ Get APOGEE gang connector state."""
 
          # get the lamp status from the actor
-         gangstate = Apogeeql.actor.models['mcp'].keyVarDict['apogeeGang'][0]
+         gangstate = self.models['mcp'].keyVarDict['apogeeGang'][0]
          gstate = 'Podium'
          if str(gangstate)=='17' or str(gangstate)=='18':
               gstate = 'FPS'
@@ -613,11 +635,11 @@ class Apogeeql(LegacyActor):
          """Insert a new row in the platedb.exposure table """
 
          # get the lamp status from the actor
-         lampqrtz = Apogeeql.actor.models['apogeecal'].keyVarDict['calSourceStatus'][0]
-         lampune  = Apogeeql.actor.models['apogeecal'].keyVarDict['calSourceStatus'][1]
-         lampthar = Apogeeql.actor.models['apogeecal'].keyVarDict['calSourceStatus'][2]
-         lampshtr = Apogeeql.actor.models['apogeecal'].keyVarDict['calShutter'][0]
-         lampcntl = Apogeeql.actor.models['apogeecal'].keyVarDict['calBoxController'][0]
+         lampqrtz = self.models['apogeecal'].keyVarDict['calSourceStatus'][0]
+         lampune  = self.models['apogeecal'].keyVarDict['calSourceStatus'][1]
+         lampthar = self.models['apogeecal'].keyVarDict['calSourceStatus'][2]
+         lampshtr = self.models['apogeecal'].keyVarDict['calShutter'][0]
+         lampcntl = self.models['apogeecal'].keyVarDict['calBoxController'][0]
 
          return lampqrtz, lampune, lampthar, lampshtr, lampcntl
 
