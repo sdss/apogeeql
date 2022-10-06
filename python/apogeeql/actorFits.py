@@ -12,7 +12,7 @@ def extendHeader(actor, header, cards):
             actor.write(message_code="w", message={'text': msg})
 
 
-def makeCard(actor, name, value, comment=''):
+def makeCard(actor, name, value, onFail=None, comment=''):
     """ Creates a pyfits Card. Does not raise exceptions. """
 
     try:
@@ -20,6 +20,8 @@ def makeCard(actor, name, value, comment=''):
     except:
         errStr = 'failed to make %s card from %s' % (name, value)
         actor.write(message_code="w", message={'text': errStr})
+        if onFail is not None:
+            return fits.Card(name, onFail, comment)
         return ('comment', errStr, '')
 
 
@@ -67,10 +69,7 @@ def makeCardFromKey(actor, keyDict, keyName, cardName, cnv=None, idx=None, comme
             actor.write(message_code="w", message={'text': errStr})
             return makeCard(actor, cardName, onFail, errStr)
 
-    if val is None:
-        makeCard(actor, cardName, onFail, comment)
-
-    return makeCard(actor, cardName, val, comment)
+    return makeCard(actor, cardName, val, onFail=onFail, comment=comment)
 
 
 def mcpCards(models, actor=None):
