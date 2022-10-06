@@ -14,7 +14,7 @@ from apogee_mountain.quicklookThread import do_quickred, do_quicklook
 from apogee_mountain.bundleThread import do_bundle
 from sdssdb.peewee.sdss5db.opsdb import Exposure
 from clu import LegacyActor
-import clu.command
+from clu.command import Command
 import actorcore.utility.fits as actorFits
 
 from apogeeql import __version__, log, config
@@ -36,20 +36,29 @@ class Apogeeql(LegacyActor):
     parser = apogeeql_parser
 
     def __init__(self, **kwargs):
-        observatory = os.getenv("OBSERVATORY")
+        self.observatory = os.getenv("OBSERVATORY")
 
-        if observatory == "APO":
+        if self.observatory == "APO":
             tcc = "tcc"
         else:
             tcc = "lcotcc"
-        monitoredActors = ["mcp", "guider", "cherno", tcc, "apogee", "apogeecal", "hal", "jaeger"]
+        self.monitoredActors = ["mcp", "guider", "cherno", tcc, "apogee", "apogeecal", "hal", "jaeger"]
+
+        if "schema" not in kwargs:
+            kwargs["schema"] = os.path.join(
+                os.path.dirname(__file__),
+                "etc/schema.json",
+            )
 
         super().__init__(name="apogeeql",
-                         models=monitoredActors,
+                         models=self.monitoredActors,
                          log=log,
-                         host=config["tron"]["tronHost"],
+                         tron_host=config["tron"]["tronHost"],
+                         tron_port=6093,
+                         host="0.0.0.0",
                          port=config["tron"]["port"],
                          version=__version__,
+                         additional_properties=True,
                          **kwargs)
 
         #
@@ -125,7 +134,11 @@ class Apogeeql(LegacyActor):
     async def start(self):
         await super().start()
 
-        if observatory == "APO":
+        for m in self.monitoredActors:
+            cmd = await self.send_command(m, "ping")
+            await cmd
+
+        if self.observatory == "APO":
             self.models["tcc"]["inst"].register_callback(self.TCCInstCB)
         else:
             self.models["lcotcc"]["inst"].register_callback(self.TCCInstCB)
@@ -137,6 +150,8 @@ class Apogeeql(LegacyActor):
 
         await self.periodicStatus()
         await self.periodicDisksStatus()
+
+        return self
 
     async def TCCInstCB(self, model_property):
         '''callback routine for tcc.inst'''
@@ -425,7 +440,7 @@ class Apogeeql(LegacyActor):
         # self.callCommand('update')
         # reactor.callLater(int(self.config.get(self.name, 'updateInterval')), self.periodicStatus)
 
-        await clu.command('status').parse()
+        await Command('status', actor=self).parse()
 
         await self.statusTimer.start(self.updateInterval, self.periodicStatus)
 
@@ -434,9 +449,9 @@ class Apogeeql(LegacyActor):
         # self.callCommand('checkdisks')
         # reactor.callLater(int(self.config.get(self.name, 'diskAlarmInterval')), self.periodicDisksStatus)
 
-        await clu.command('checkdisks').parse()
+        await Command('checkdisks', actor=self).parse()
 
-        self.diskTimer.start(self.diskAlarmInterval, periodicDisksStatus)
+        await self.diskTimer.start(self.diskAlarmInterval, self.periodicDisksStatus)
 
     def appendFitsKeywords(self, filename):
         '''make a copy of the input FITS file with added keywords'''
