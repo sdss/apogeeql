@@ -40,7 +40,7 @@ def makeCardFromKey(actor, keyDict, keyName, cardName, cnv=None, idx=None, comme
         if idx is not None:
             val = val[idx]
         else:
-            val = val.getValue()
+            val = val
     except Exception as e:
         errStr = "failed to index %s by %s from %s for %s: %s" % \
             (val, idx, keyName, cardName, e)
@@ -66,6 +66,9 @@ def makeCardFromKey(actor, keyDict, keyName, cardName, cnv=None, idx=None, comme
                 (val, keyName, cardName, cnv, e)
             actor.write(message_code="w", message={'text': errStr})
             return makeCard(actor, cardName, onFail, errStr)
+
+    if val is None:
+        makeCard(actor, cardName, onFail, comment)
 
     return makeCard(actor, cardName, val, comment)
 
@@ -402,7 +405,7 @@ def plateCards(models, actor):
             name = "%04d-%05d-%02d" % (plate, mjd, mapping)
     except Exception as e:
         nameComment += "-cartKeyExcept: %s"%e
-        cartridge, plate, pointing, mjd, mapping = -1,-1,'?',-1,-1
+        cartridge, plate, pointing, mjd, mapping = "", "", "", "", ""
         name = '0000-00000-00'
 
     try:
@@ -417,7 +420,7 @@ def plateCards(models, actor):
     
     if 'sop' in models:
         cards.append(makeCardFromKey(actor, models['sop'], 'version', 'v_sop', comment='version of the current sopActor', onFail='Unknown'))
-    
+
     cards.append(makeCard(actor, 'NAME', name, nameComment))
     cards.append(makeCard(actor, 'PLATEID', plate, 'The currently loaded plate'))
     cards.append(makeCard(actor, 'CARTID', cartridge, 'The currently loaded cartridge'))
@@ -461,7 +464,7 @@ def _cnvListCard(val, itemCnv=int):
 
 def _cnvPVTPosCard(pvt, atTime=None):
     try:
-        return pvt.getPos()
+        return pvt[0]
     except:
         return numpy.nan
 
