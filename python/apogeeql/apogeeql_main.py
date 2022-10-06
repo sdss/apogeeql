@@ -15,7 +15,7 @@ from apogee_mountain.bundleThread import do_bundle
 from sdssdb.peewee.sdss5db.opsdb import Exposure
 from clu import LegacyActor
 from clu.command import Command
-import actorcore.utility.fits as actorFits
+from apogeeql import actorFits
 
 from apogeeql import __version__, log, config
 from apogeeql.tools import wrapBlocking, Timer
@@ -60,19 +60,6 @@ class Apogeeql(LegacyActor):
                          version=__version__,
                          additional_properties=True,
                          **kwargs)
-
-        #
-        # register the keywords that we want to pay attention to
-        #
-        # if observatory == "APO":
-        #     self.models["tcc"]["inst"].register_callback(self.TCCInstCB)
-        # else:
-        #     self.models["lcotcc"]["inst"].register_callback(self.TCCInstCB)
-        # self.models["apogee"]["exposureState"].register_callback(self.ExposureStateCB)
-        # self.models["apogee"]["exposureWroteFile"].register_callback(self.exposureWroteFileCB)
-        # self.models["apogee"]["exposureWroteSummary"].register_callback(self.exposureWroteSummaryCB)
-        # self.models["apogee"]["ditherPosition"].register_callback(self.ditherPositionCB)
-        # self.models["jaeger"]["configuration_loaded"].register_callback(self.configurationLoadedCB)
 
         # only the ics_datadir is defined in the cfg file - expect the datadir to be an
         # environment variable set by the apgquicklook setup
@@ -258,7 +245,8 @@ class Apogeeql(LegacyActor):
                 args = ('UTRDONE', self.actor, self.frameid, mjd5, self.exp_pk)
                 await wrapBlocking(do_quickred, args, self.summary_file,
                                                 self.rawdir, self.namedDitherPos)
-                await wrapBlocking(do_bundle, "BUNDLE", self.frameid, mjd5, self.exp_pk)
+                args = ("BUNDLE", self.frameid, mjd5, self.exp_pk)
+                await wrapBlocking(do_bundle, args)
                 # Apogeeql.actor.ql_in_queue.put(('UTRDONE',Apogeeql.actor,Apogeeql.frameid, mjd5, Apogeeql.exp_pk),block=True)
                 # Apogeeql.actor.bndl_in_queue.put(('BUNDLE',Apogeeql.frameid, mjd5, Apogeeql.exp_pk),block=True)
 
@@ -511,7 +499,7 @@ class Apogeeql(LegacyActor):
              ds = hdulist[0]._calculate_datasum('standard')
 
              # add a new CHECKSUM line to the header (pyfits.open removes it) with same comment
-             hdulist[0].header.update("CHECKSUM",'0'*16, cs_comment)
+             hdulist[0].header["CHECKSUM"] = ('0'*16, cs_comment)
 
              # calulate a new checksum
              cs=hdulist[0]._calculate_checksum(ds,'standard')
@@ -528,33 +516,33 @@ class Apogeeql(LegacyActor):
         # FITS standard wants them to be ints.
         bscale = int(hdulist[0].header.get('BSCALE',1))
         bzero = int(hdulist[0].header.get('BZERO',32768))
-        del hdulist[0].header['BSCALE']
-        del hdulist[0].header['BZERO']
-        hdulist[0].header.update('BSCALE',bscale,after='GCOUNT')
-        hdulist[0].header.update('BZERO',bzero,after='BSCALE')
+        # del hdulist[0].header['BSCALE']
+        # del hdulist[0].header['BZERO']
+        hdulist[0].header['BSCALE']  = bscale #after='GCOUNT')
+        hdulist[0].header['BZERO']  = bzero #after='BSCALE')
 
-        hdulist[0].header.update('TELESCOP' , 'SDSS 2-5m')
-        hdulist[0].header.update('FILENAME' ,outFile)
-        hdulist[0].header.update('EXPTYPE' ,self.expType)
+        hdulist[0].header['TELESCOP'] = 'SDSS 2-5m'
+        hdulist[0].header['FILENAME'] = outFile
+        hdulist[0].header['EXPTYPE'] = self.expType
 
         # get the calibration box status
         lampqrtz, lampune, lampthar, lampshtr, lampcntl = self.getCalibBoxStatus()
-        hdulist[0].header.update('LAMPQRTZ',lampqrtz, 'CalBox Quartz Lamp Status')
-        hdulist[0].header.update('LAMPUNE',lampune, 'CalBox UNe Lamp Status')
-        hdulist[0].header.update('LAMPTHAR',lampthar, 'CalBox ThArNe Lamp Status')
-        hdulist[0].header.update('LAMPSHTR',lampshtr, 'CalBox Shutter Lamp Status')
-        hdulist[0].header.update('LAMPCNTL',lampcntl, 'CalBox Controller Status')
+        hdulist[0].header['LAMPQRTZ'] = (lampqrtz, 'CalBox Quartz Lamp Status')
+        hdulist[0].header['LAMPUNE'] = (lampune, 'CalBox UNe Lamp Status')
+        hdulist[0].header['LAMPTHAR'] = (lampthar, 'CalBox ThArNe Lamp Status')
+        hdulist[0].header['LAMPSHTR'] = (lampshtr, 'CalBox Shutter Lamp Status')
+        hdulist[0].header['LAMPCNTL'] = (lampcntl, 'CalBox Controller Status')
 
         # add gang connector state
         gangstate,gstate = self.getGangState()
-        hdulist[0].header.update('GANGSTAT',gstate, 'APOGEE Gang Connector State')
+        hdulist[0].header['GANGSTAT'] = (gstate, 'APOGEE Gang Connector State')
 
         # add shutter information
         # shutterLimitSwitch=False,True   shutter is closed
         # shutterLimitSwitch=True,False   shutter is open
         # Any other combination means there's something wrong with the shutter.
         shutterstate = self.getShutterState()
-        hdulist[0].header.update('SHUTTER',shutterstate, 'APOGEE Shutter State')
+        hdulist[0].header['SHUTTER'] = (shutterstate, 'APOGEE Shutter State')
 
         # Add FPI information
         #hdulist[0].header.update('LAMPFPI',lampfpi, 'FPI Lamp shutter status')
@@ -568,7 +556,7 @@ class Apogeeql(LegacyActor):
 
         # guider i seeing=2.09945
         #seeing = Apogeeql.actor.models['guider'].keyVarDict['seeing'][0]
-        seeing = self.models['cherno'].keyVarDict['astrometry_fit'][4]
+        seeing = self.models['cherno']['astrometry_fit'][4]
         #print('cherno astrometry_fit: ',Apogeeql.actor.models['cherno'].keyVarDict['astrometry_fit'])
         #print('seeing: ',seeing)
         try:
@@ -577,7 +565,7 @@ class Apogeeql(LegacyActor):
                   seeing=0.0
         except:
              seeing=0.0
-        hdulist[0].header.update('SEEING',seeing, 'RMS seeing from guide fibers')
+        hdulist[0].header['SEEING'] = (seeing, 'RMS seeing from guide fibers')
 
         # starttime is MJD in seconds
         time_string = hdulist[0].header['DATE-OBS']
@@ -586,19 +574,19 @@ class Apogeeql(LegacyActor):
         exptime = hdulist[0].header['exptime']
 
         cards=[]
-        cards.extend(actorFits.mcpCards(self.models, cmd=self.bcast))
+        cards.extend(actorFits.mcpCards(self.models, actor=self))
 
         observatory = os.getenv("OBSERVATORY")
         if observatory == "APO" :
-             cards.extend(actorFits.tccCards(self.models, cmd=self.bcast))
+             cards.extend(actorFits.tccCards(self.models, actor=self))
         else :
-             cards.extend(actorFits.lcoTCCCards(self.models, cmd=self.bcast))
+             cards.extend(actorFits.lcoTCCCards(self.models, actor=self))
 
-        cards.extend(actorFits.plateCards(self.models, cmd=self.bcast))
+        cards.extend(actorFits.plateCards(self.models, actor=self))
 
         # Get the guider (cherno) offsets.
-        default_offset = self.models['cherno'].keyVarDict['default_offset']
-        offset = self.models['cherno'].keyVarDict['offset']
+        default_offset = self.models['cherno']['default_offset']
+        offset = self.models['cherno']['offset']
         for idx, name in enumerate(['RA', 'DEC', 'PA']):
             default_ax = default_offset[idx]
             offset_ax = offset[idx]
@@ -611,18 +599,17 @@ class Apogeeql(LegacyActor):
 
         for name, val, comment in cards:
              try:
-                  hdulist[0].header.update(name, val, comment)
+                  hdulist[0].header[name] = (val, comment)
              except:
                   log.warn('text="failed to add card: %s=%s (%s)"' % (name, val, comment))
 
-
-        # New SDSS-V FPS keywords
+        # New SDSS-V FPS keywordsa
         # CARTID (set to FPS-N), DESIGNID, CONFID, and FIELDID.
-        hdulist[0].header.update('CARTID','FPS', 'Using FPS')
-        hdulist[0].header.update('CONFIGID',self.config_id, 'FPS configID')
-        hdulist[0].header.update('DESIGNID',self.design_id, 'DesignID')
-        hdulist[0].header.update('FIELDID',self.field_id, 'FieldID')
-        hdulist[0].header.update('CONFIGFL',self.summary_file, 'config summary file')
+        hdulist[0].header['CARTID'] = ('FPS', 'Using FPS')
+        hdulist[0].header['CONFIGID'] = (self.config_id, 'FPS configID')
+        hdulist[0].header['DESIGNID'] = (self.design_id, 'DesignID')
+        hdulist[0].header['FIELDID'] = (self.field_id, 'FieldID')
+        hdulist[0].header['CONFIGFL'] = (self.summary_file, 'config summary file')
 
         # repair (if possible) any problems with the header (mainly OBSCMNT too long)
         hdulist.verify('fix')
@@ -639,7 +626,7 @@ class Apogeeql(LegacyActor):
         # Any other combination means there's something wrong with the shutter.
 
         # get the shutter status from the actor
-        shutterinfo = self.models['apogee'].keyVarDict['shutterLimitSwitch']
+        shutterinfo = self.models['apogee']['shutterLimitSwitch']
         if tuple(shutterinfo) == (False,True):
           shutterstate = 'Closed'
         elif tuple(shutterinfo) == (True,False):
@@ -656,7 +643,7 @@ class Apogeeql(LegacyActor):
         """ Get APOGEE gang connector state."""
 
         # get the lamp status from the actor
-        gangstate = self.models['mcp'].keyVarDict['apogeeGang'][0]
+        gangstate = self.models['mcp']['apogeeGang'][0]
         gstate = 'Podium'
         if str(gangstate)=='17' or str(gangstate)=='18':
           gstate = 'FPS'
@@ -675,11 +662,11 @@ class Apogeeql(LegacyActor):
          """Insert a new row in the platedb.exposure table """
 
          # get the lamp status from the actor
-         lampqrtz = self.models['apogeecal'].keyVarDict['calSourceStatus'][0]
-         lampune  = self.models['apogeecal'].keyVarDict['calSourceStatus'][1]
-         lampthar = self.models['apogeecal'].keyVarDict['calSourceStatus'][2]
-         lampshtr = self.models['apogeecal'].keyVarDict['calShutter'][0]
-         lampcntl = self.models['apogeecal'].keyVarDict['calBoxController'][0]
+         lampqrtz = self.models['apogeecal']['calSourceStatus'][0]
+         lampune  = self.models['apogeecal']['calSourceStatus'][1]
+         lampthar = self.models['apogeecal']['calSourceStatus'][2]
+         lampshtr = self.models['apogeecal']['calShutter'][0]
+         lampcntl = self.models['apogeecal']['calBoxController'][0]
 
          return lampqrtz, lampune, lampthar, lampshtr, lampcntl
 
