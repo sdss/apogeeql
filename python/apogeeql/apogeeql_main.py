@@ -108,7 +108,6 @@ class Apogeeql(LegacyActor):
         self.expState=''
         self.expType=''
         self.numReadsCommanded=0
-        self.actor=''
         self.exp_pk = 0
         self.frameid = ''
         self.ditherPos = 0.0
@@ -242,7 +241,7 @@ class Apogeeql(LegacyActor):
                 self.frameid = res[1][:8]
                 mjd5 = int(self.frameid[:4]) + int(self.startOfSurvey)
 
-                args = ('UTRDONE', self.actor, self.frameid, mjd5, self.exp_pk)
+                args = ('UTRDONE', self, self.frameid, mjd5, self.exp_pk)
                 await wrapBlocking(do_quickred, args, self.summary_file,
                                                 self.rawdir, self.namedDitherPos)
                 args = ("BUNDLE", self.frameid, mjd5, self.exp_pk)
@@ -613,7 +612,7 @@ class Apogeeql(LegacyActor):
 
         # repair (if possible) any problems with the header (mainly OBSCMNT too long)
         hdulist.verify('fix')
-        hdulist.writeto(outFile, clobber=True, output_verify='warn', checksum=True)
+        hdulist.writeto(outFile, overwrite=True, output_verify='warn', checksum=True)
         os.chmod(outFile,0o444) # all read only
         return outFile, starttime, exptime
 
