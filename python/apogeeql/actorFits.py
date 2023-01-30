@@ -165,11 +165,11 @@ def lcoTCCCards(models, actor=None):
                                  comment='Dec of telescope pointing (deg)',
                                  onFail='NaN'))
 
-    cards.append(makeCardFromKey(actor, tccDict, 'axePos', 'RA',
+    cards.append(makeCardFromKey(actor, tccDict, 'objNetPos', 'RA',
                                  cnv=float,
                                  idx=0, comment='RA axis pos. (approx, deg)',
                                  onFail='NaN'))
-    cards.append(makeCardFromKey(actor, tccDict, 'axePos', 'DEC',
+    cards.append(makeCardFromKey(actor, tccDict, 'objNetPos', 'DEC',
                                  cnv=float,
                                  idx=1, comment='DEC axis pos. (approx, deg)',
                                  onFail='NaN'))
